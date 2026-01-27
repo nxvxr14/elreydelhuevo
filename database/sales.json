@@ -1,0 +1,23 @@
+{
+  "sales": [
+    {
+      "id": "V17694616362024033",
+      "reference": "V17694616362024033",
+      "clientId": 1,
+      "items": [
+        {
+          "productId": 1,
+          "quantity": 7,
+          "unitPrice": 12000,
+          "subtotal": 84000
+        }
+      ],
+      "total": 84000,
+      "received": 100000,
+      "change": 16000,
+      "note": "",
+      "date": "2026-01-26",
+      "createdAt": "2026-01-26T21:07:16.202Z"
+    }
+  ]
+}

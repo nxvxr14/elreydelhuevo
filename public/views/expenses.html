@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gastos - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/pos" class="nav-item"><i class="fas fa-cash-register"></i><span>Punto de Venta</span></a>
+                <a href="/sales" class="nav-item"><i class="fas fa-shopping-cart"></i><span>Ventas</span></a>
+                <a href="/expenses" class="nav-item active"><i class="fas fa-money-bill-wave"></i><span>Gastos</span></a>
+                <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
+                <a href="/categories" class="nav-item"><i class="fas fa-tags"></i><span>Categorías</span></a>
+                <a href="/clients" class="nav-item"><i class="fas fa-users"></i><span>Clientes</span></a>
+                <a href="/inventory" class="nav-item"><i class="fas fa-warehouse"></i><span>Inventario</span></a>
+                <a href="/cash-register" class="nav-item"><i class="fas fa-calculator"></i><span>Caja</span></a>
+                <a href="/reports" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Gastos</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showExpenseModal()">
+                        <i class="fas fa-plus"></i> Nuevo Gasto
+                    </button>
+                </div>
+            </div>
+
+            <div class="filters-bar">
+                <div class="filter-group">
+                    <label for="filterStartDate">Desde:</label>
+                    <input type="date" id="filterStartDate" class="form-control" onchange="loadExpenses()">
+                </div>
+                <div class="filter-group">
+                    <label for="filterEndDate">Hasta:</label>
+                    <input type="date" id="filterEndDate" class="form-control" onchange="loadExpenses()">
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Referencia</th>
+                                    <th>Concepto</th>
+                                    <th>Monto</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expensesTable">
+                                <tr><td colspan="5" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="expensesPagination"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="expenseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="expenseModalTitle">Nuevo Gasto</h3>
+                <button class="modal-close" onclick="closeExpenseModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="expenseForm" onsubmit="event.preventDefault(); saveExpense();">
+                    <input type="hidden" id="expenseId">
+                    <div class="form-group">
+                        <label for="expenseConcept">Concepto *</label>
+                        <input type="text" id="expenseConcept" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="expenseAmount">Monto *</label>
+                        <input type="text" id="expenseAmount" class="form-control" placeholder="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="expenseDate">Fecha</label>
+                        <input type="date" id="expenseDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="expenseNote">Nota (máx. 200 caracteres)</label>
+                        <textarea id="expenseNote" class="form-control" rows="2" maxlength="200"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeExpenseModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveExpense()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="expenseDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Detalle de Gasto</h3>
+                <button class="modal-close" onclick="closeExpenseDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="expenseDetailContent"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeExpenseDetailModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        let expenses = [];
+        let currentPage = 1;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+            document.getElementById('expenseDate').value = today.toISOString().split('T')[0];
+            
+            loadExpenses();
+        });
+
+        async function loadExpenses() {
+            try {
+                Utils.showLoading();
+                const startDate = document.getElementById('filterStartDate').value;
+                const endDate = document.getElementById('filterEndDate').value;
+                
+                const result = await Utils.fetch(`/api/expenses?startDate=${startDate}&endDate=${endDate}`);
+                expenses = result.expenses.reverse(); // Últimos primero
+                currentPage = 1;
+                renderExpenses();
+            } catch (error) {
+                Utils.showToast('Error al cargar los gastos', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function renderExpenses() {
+            const table = document.getElementById('expensesTable');
+            
+            if (expenses.length === 0) {
+                table.innerHTML = '<tr><td colspan="5" class="text-center"><div class="empty-state"><i class="fas fa-money-bill-wave"></i><h3>No hay gastos</h3></div></td></tr>';
+                document.getElementById('expensesPagination').innerHTML = '';
+                return;
+            }
+            
+            const { items, currentPage: page, totalPages } = Utils.paginate(expenses, currentPage, 10);
+            currentPage = page;
+            
+            table.innerHTML = items.map(expense => `
+                <tr>
+                    <td>${Utils.formatDate(expense.date)}</td>
+                    <td><code>${expense.reference}</code></td>
+                    <td>${Utils.escapeHtml(expense.concept)}</td>
+                    <td><strong class="text-danger">${Utils.formatCurrency(expense.amount)}</strong></td>
+                    <td class="table-actions">
+                        <button class="btn btn-sm btn-info" onclick="viewExpenseDetail('${expense.id}')"><i class="fas fa-eye"></i></button>
+                        <button class="btn btn-sm btn-warning" onclick="editExpense('${expense.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteExpense('${expense.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            Utils.renderPagination('expensesPagination', currentPage, totalPages, 'goToPage');
+        }
+        
+        function goToPage(page) {
+            currentPage = page;
+            renderExpenses();
+        }
+
+        function showExpenseModal(expense = null) {
+            document.getElementById('expenseForm').reset();
+            document.getElementById('expenseId').value = '';
+            document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+            
+            const amountInput = document.getElementById('expenseAmount');
+            Utils.setupMoneyInput(amountInput);
+            
+            if (expense) {
+                document.getElementById('expenseModalTitle').textContent = 'Editar Gasto';
+                document.getElementById('expenseId').value = expense.id;
+                document.getElementById('expenseConcept').value = expense.concept;
+                amountInput.value = Utils.formatNumber(expense.amount);
+                document.getElementById('expenseDate').value = expense.date;
+                document.getElementById('expenseNote').value = expense.note || '';
+            } else {
+                document.getElementById('expenseModalTitle').textContent = 'Nuevo Gasto';
+            }
+            
+            document.getElementById('expenseModal').classList.add('active');
+        }
+
+        function closeExpenseModal() {
+            document.getElementById('expenseModal').classList.remove('active');
+        }
+
+        async function saveExpense() {
+            const id = document.getElementById('expenseId').value;
+            const amountStr = document.getElementById('expenseAmount').value;
+            const amount = Utils.parseNumber(amountStr);
+            const data = {
+                concept: document.getElementById('expenseConcept').value,
+                amount: amount,
+                date: document.getElementById('expenseDate').value,
+                note: document.getElementById('expenseNote').value
+            };
+            
+            if (!data.concept || !amountStr) {
+                Utils.showToast('Complete los campos requeridos', 'warning');
+                return;
+            }
+            
+            if (amount <= 0) {
+                Utils.showToast('El monto debe ser mayor a 0', 'warning');
+                return;
+            }
+            
+            try {
+                Utils.showLoading();
+                
+                if (id) {
+                    const verified = await Utils.promptPassword('Ingrese la contraseña para editar');
+                    if (!verified) { Utils.hideLoading(); return; }
+                    
+                    await Utils.fetch(`/api/expenses/${id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(data)
+                    });
+                    Utils.showToast('Gasto actualizado', 'success');
+                } else {
+                    await Utils.fetch('/api/expenses', {
+                        method: 'POST',
+                        body: JSON.stringify(data)
+                    });
+                    Utils.showToast('Gasto registrado', 'success');
+                }
+                
+                closeExpenseModal();
+                loadExpenses();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function editExpense(id) {
+            const expense = expenses.find(e => e.id === id);
+            if (expense) showExpenseModal(expense);
+        }
+
+        async function viewExpenseDetail(id) {
+            try {
+                Utils.showLoading();
+                const result = await Utils.fetch(`/api/expenses/${id}`);
+                const expense = result.expense;
+                
+                document.getElementById('expenseDetailContent').innerHTML = `
+                    <p><strong>Referencia:</strong> <code>${expense.reference}</code></p>
+                    <p><strong>Fecha:</strong> ${Utils.formatDate(expense.date)}</p>
+                    <p><strong>Concepto:</strong> ${Utils.escapeHtml(expense.concept)}</p>
+                    <p><strong>Monto:</strong> <span class="text-danger">${Utils.formatCurrency(expense.amount)}</span></p>
+                    ${expense.note ? `<p><strong>Nota:</strong> ${Utils.escapeHtml(expense.note)}</p>` : ''}
+                `;
+                
+                document.getElementById('expenseDetailModal').classList.add('active');
+            } catch (error) {
+                Utils.showToast('Error al cargar el detalle', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function closeExpenseDetailModal() {
+            document.getElementById('expenseDetailModal').classList.remove('active');
+        }
+
+        async function deleteExpense(id) {
+            const confirmed = await Utils.confirm('¿Eliminar este gasto?');
+            if (!confirmed) return;
+            
+            const verified = await Utils.promptPassword('Ingrese la contraseña para eliminar');
+            if (!verified) return;
+            
+            try {
+                Utils.showLoading();
+                await Utils.fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+                Utils.showToast('Gasto eliminado', 'success');
+                loadExpenses();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

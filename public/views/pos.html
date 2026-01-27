@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punto de Venta - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .pos-page { padding: 1rem; min-height: 100vh; }
+        .pos-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .pos-header h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .pos-header h1 span { font-size: 1.5rem; }
+        
+        .cash-closed-warning {
+            background: var(--warning-bg);
+            border: 1px solid var(--warning);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        /* Layout principal: 3 columnas */
+        .pos-main { 
+            display: grid; 
+            grid-template-columns: 1fr 350px 320px; 
+            gap: 1rem; 
+            height: calc(100vh - 120px);
+        }
+        
+        /* Sección de productos */
+        .products-section { 
+            background: var(--bg-card); 
+            border-radius: var(--border-radius-lg); 
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .products-search { margin-bottom: 1rem; }
+        .category-tabs { 
+            display: flex; 
+            gap: 0.5rem; 
+            margin-bottom: 1rem; 
+            flex-wrap: wrap; 
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+        .category-tab {
+            padding: 0.5rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+        .category-tab.active, .category-tab:hover {
+            background: var(--primary);
+            color: #000;
+            border-color: var(--primary);
+        }
+        
+        .pos-products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 0.75rem;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .pos-product-card {
+            background: var(--bg-input);
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+        }
+        .pos-product-card:hover { 
+            border-color: var(--primary); 
+            transform: translateY(-2px); 
+        }
+        .pos-product-card.out-of-stock { 
+            opacity: 0.5; 
+            cursor: not-allowed; 
+        }
+        .pos-product-card h4 { 
+            font-size: 0.9rem; 
+            margin-bottom: 0.5rem; 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pos-product-card .price { 
+            font-size: 1.1rem; 
+            font-weight: 700; 
+            color: var(--primary); 
+        }
+        .pos-product-card .stock { 
+            font-size: 0.75rem; 
+            color: var(--text-muted); 
+            margin-top: 0.25rem;
+        }
+        
+        /* Sección de items del carrito (columna del medio) */
+        .cart-items-section {
+            background: var(--bg-card);
+            border-radius: var(--border-radius-lg);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        .cart-items-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            flex-shrink: 0;
+        }
+        .cart-items-header h3 { 
+            font-size: 1.1rem; 
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .cart-items-header .cart-count {
+            background: var(--primary);
+            color: #000;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .cart-items-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0.75rem;
+            min-height: 0;
+        }
+        
+        /* Item del carrito - FORZAR layout vertical */
+        .cart-items-list .cart-item {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            justify-content: flex-start !important;
+            background: var(--bg-input);
+            border-radius: var(--border-radius);
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        .cart-items-list .cart-item:hover {
+            border-color: var(--primary);
+        }
+        .cart-items-list .cart-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* Cada línea del item - FORZAR bloque */
+        .cart-items-list .cart-item-line {
+            display: block !important;
+            width: 100% !important;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+        .cart-items-list .cart-item-line:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* Línea 1: Nombre + botón quitar */
+        .cart-items-list .cart-item-line.line-name {
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--primary);
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 8px;
+        }
+        .cart-items-list .cart-item-line.line-name span {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 8px;
+        }
+        .cart-items-list .cart-item-remove {
+            background: var(--danger);
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .cart-items-list .cart-item-remove:hover {
+            background: #dc2626;
+        }
+        
+        /* Línea 2: Cantidad */
+        .cart-items-list .cart-item-line.line-qty {
+            display: flex !important;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+        }
+        .cart-items-list .cart-qty-control {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .cart-items-list .cart-qty-control button {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-hover);
+            border: none;
+            border-radius: 4px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .cart-items-list .cart-qty-control button:hover { 
+            background: var(--primary); 
+            color: #000; 
+        }
+        .cart-items-list .cart-qty-control .qty-value { 
+            display: inline-block;
+            min-width: 30px; 
+            text-align: center; 
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        /* Línea 3: Precio */
+        .cart-items-list .cart-item-line.line-price {
+            display: flex !important;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+        }
+        .cart-items-list .cart-item-price-input {
+            width: 100px;
+            padding: 4px 8px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            text-align: right;
+        }
+        .cart-items-list .cart-item-price-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .cart-items-list .price-modified {
+            color: var(--warning);
+            font-size: 0.8rem;
+        }
+        
+        /* Línea 4: Subtotal */
+        .cart-items-list .cart-item-line.line-subtotal {
+            display: flex !important;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+        }
+        .cart-items-list .cart-item-subtotal { 
+            font-weight: 700; 
+            color: var(--success); 
+            font-size: 1rem;
+        }
+        
+        /* Sección de checkout (columna derecha) */
+        .checkout-section {
+            background: var(--bg-card);
+            border-radius: var(--border-radius-lg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .checkout-total {
+            padding: 1.25rem;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%);
+            border-bottom: 2px solid var(--primary);
+            text-align: center;
+        }
+        .checkout-total label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+        .checkout-total .total-amount {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .checkout-form {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        
+        .checkout-form .form-group {
+            margin-bottom: 1rem;
+        }
+        .checkout-form .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+        
+        .checkout-client-new {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .checkout-client-new input {
+            flex: 1;
+        }
+        
+        .checkout-payment {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        
+        .checkout-actions {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .checkout-actions .btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        .checkout-actions .btn:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .pos-main { 
+                grid-template-columns: 1fr 300px 280px; 
+            }
+        }
+        
+        @media (max-width: 992px) {
+            .pos-main { 
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            .products-section {
+                max-height: 50vh;
+            }
+            .cart-items-section {
+                max-height: 300px;
+            }
+            .checkout-section {
+                max-height: none;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .pos-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .pos-header h1 {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="pos-page">
+        <div class="pos-header">
+            <h1>
+                <span>🥚</span>
+                EL REY DEL HUEVO - POS
+            </h1>
+            <div class="d-flex gap-1">
+                <a href="/dashboard" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Dashboard
+                </a>
+                <button class="btn btn-warning" onclick="showQuickExpenseModal()">
+                    <i class="fas fa-money-bill-wave"></i> Registrar Gasto
+                </button>
+                <button class="btn btn-info" onclick="showCashStatus()">
+                    <i class="fas fa-calculator"></i> Estado de Caja
+                </button>
+            </div>
+        </div>
+
+        <!-- Cash Register Warning (shown when closed) -->
+        <div class="cash-closed-warning" id="cashClosedWarning" style="display: none;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--warning); margin-bottom: 1rem;"></i>
+            <h2>Caja Cerrada</h2>
+            <p class="mb-2">Debe abrir la caja antes de realizar ventas.</p>
+            <button class="btn btn-primary btn-lg" onclick="showOpenCashModal()">
+                <i class="fas fa-door-open"></i> Abrir Caja
+            </button>
+        </div>
+
+        <!-- POS Main Content: 3 columnas -->
+        <div class="pos-main" id="posMain" style="display: none;">
+            <!-- Columna 1: Productos -->
+            <div class="products-section">
+                <div class="products-search">
+                    <input type="text" class="form-control" id="productSearch" 
+                           placeholder="Buscar producto..." oninput="filterProducts()">
+                </div>
+                
+                <div class="category-tabs" id="categoryTabs">
+                    <button class="category-tab active" data-category="all">Todos</button>
+                </div>
+                
+                <div class="pos-products-grid" id="productsGrid">
+                    <!-- Products loaded dynamically -->
+                </div>
+            </div>
+            
+            <!-- Columna 2: Items del carrito -->
+            <div class="cart-items-section" id="cartSection">
+                <div class="cart-items-header">
+                    <h3><i class="fas fa-shopping-cart"></i> Carrito</h3>
+                    <span class="cart-count" id="cartCount">0</span>
+                </div>
+                
+                <div class="cart-items-list" id="cartItems">
+                    <div class="empty-state">
+                        <i class="fas fa-shopping-cart"></i>
+                        <p>Carrito vacío</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Columna 3: Checkout -->
+            <div class="checkout-section">
+                <div class="checkout-total">
+                    <label>Total a Pagar</label>
+                    <div class="total-amount" id="cartTotal">$ 0</div>
+                </div>
+                
+                <div class="checkout-form">
+                    <div class="form-group">
+                        <label>Cliente *</label>
+                        <select id="clientSelect" class="form-control">
+                            <option value="">Seleccionar cliente...</option>
+                        </select>
+                        <div class="checkout-client-new">
+                            <input type="text" id="newClientName" class="form-control" placeholder="Nuevo cliente...">
+                            <button class="btn btn-secondary btn-sm" onclick="createQuickClient()">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="checkout-payment">
+                        <div class="form-group">
+                            <label>Recibido</label>
+                            <input type="text" id="receivedAmount" class="form-control" 
+                                   placeholder="0" oninput="calculateChange()">
+                        </div>
+                        <div class="form-group">
+                            <label>Cambio</label>
+                            <input type="text" id="changeAmount" class="form-control" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Nota (opcional)</label>
+                        <textarea id="saleNote" class="form-control" rows="2" 
+                                  maxlength="200" placeholder="Nota opcional..."></textarea>
+                    </div>
+                </div>
+                
+                <div class="checkout-actions">
+                    <button class="btn btn-success btn-lg" onclick="processSale()">
+                        <i class="fas fa-check"></i> Cobrar
+                    </button>
+                    <button class="btn btn-danger" onclick="clearCart()">
+                        <i class="fas fa-trash"></i> Limpiar Carrito
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Open Cash Modal -->
+    <div class="modal-overlay" id="openCashModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Abrir Caja</h3>
+                <button class="modal-close" onclick="closeOpenCashModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="event.preventDefault(); openCashRegister();">
+                    <p class="mb-2">Ingrese el dinero inicial en caja:</p>
+                    <div class="form-group">
+                        <label for="initialCashAmount">Monto Inicial *</label>
+                        <input type="text" id="initialCashAmount" class="form-control" 
+                               placeholder="0" autofocus>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeOpenCashModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="openCashRegister()">Abrir Caja</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cash Status Modal -->
+    <div class="modal-overlay" id="cashStatusModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Estado de Caja</h3>
+                <button class="modal-close" onclick="closeCashStatusModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="cashStatusContent">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCashStatusModal()">Cerrar</button>
+                <button class="btn btn-danger" id="closeCashBtn" onclick="closeCashRegister()">
+                    <i class="fas fa-door-closed"></i> Cerrar Caja
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sale Success Modal -->
+    <div class="modal-overlay" id="saleSuccessModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--success);">
+                    <i class="fas fa-check-circle"></i> Venta Exitosa
+                </h3>
+            </div>
+            <div class="modal-body" id="saleSuccessContent">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary btn-lg btn-block" onclick="closeSaleSuccessModal()">
+                    Continuar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Expense Modal -->
+    <div class="modal-overlay" id="quickExpenseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-money-bill-wave"></i> Registrar Gasto</h3>
+                <button class="modal-close" onclick="closeQuickExpenseModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="quickExpenseForm" onsubmit="event.preventDefault(); saveQuickExpense();">
+                    <div class="form-group">
+                        <label for="quickExpenseConcept">Concepto *</label>
+                        <input type="text" id="quickExpenseConcept" class="form-control" 
+                               placeholder="Ej: Compra de insumos..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="quickExpenseAmount">Monto *</label>
+                        <input type="text" id="quickExpenseAmount" class="form-control" 
+                               placeholder="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="quickExpenseNote">Nota (opcional)</label>
+                        <textarea id="quickExpenseNote" class="form-control" rows="2" 
+                                  maxlength="200" placeholder="Nota adicional..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeQuickExpenseModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveQuickExpense()">
+                    <i class="fas fa-save"></i> Guardar Gasto
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/pos.js"></script>
+</body>
+</html>

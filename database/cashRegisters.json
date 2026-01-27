@@ -1,0 +1,16 @@
+{
+  "cashRegisters": [],
+  "currentRegister": {
+    "id": "C17694615385997247",
+    "reference": "C17694615385997247",
+    "date": "2026-01-26",
+    "initialAmount": 300000,
+    "status": "open",
+    "openedAt": "2026-01-26T21:05:38.600Z",
+    "closedAt": null,
+    "totalSales": 0,
+    "totalExpenses": 0,
+    "expectedAmount": 300000,
+    "finalAmount": null
+  }
+}

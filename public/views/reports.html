@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/pos" class="nav-item"><i class="fas fa-cash-register"></i><span>Punto de Venta</span></a>
+                <a href="/sales" class="nav-item"><i class="fas fa-shopping-cart"></i><span>Ventas</span></a>
+                <a href="/expenses" class="nav-item"><i class="fas fa-money-bill-wave"></i><span>Gastos</span></a>
+                <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
+                <a href="/categories" class="nav-item"><i class="fas fa-tags"></i><span>Categorías</span></a>
+                <a href="/clients" class="nav-item"><i class="fas fa-users"></i><span>Clientes</span></a>
+                <a href="/inventory" class="nav-item"><i class="fas fa-warehouse"></i><span>Inventario</span></a>
+                <a href="/cash-register" class="nav-item"><i class="fas fa-calculator"></i><span>Caja</span></a>
+                <a href="/reports" class="nav-item active"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Reportes</h1>
+            </div>
+
+            <!-- Report Type Selector -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-primary active" id="btnDailyReport" onclick="selectReportType('daily')">
+                            <i class="fas fa-calendar-day"></i> Reporte Diario
+                        </button>
+                        <button class="btn btn-secondary" id="btnSalesReport" onclick="selectReportType('sales')">
+                            <i class="fas fa-shopping-cart"></i> Ventas
+                        </button>
+                        <button class="btn btn-secondary" id="btnExpensesReport" onclick="selectReportType('expenses')">
+                            <i class="fas fa-money-bill-wave"></i> Gastos
+                        </button>
+                        <button class="btn btn-secondary" id="btnInventoryReport" onclick="selectReportType('inventory')">
+                            <i class="fas fa-warehouse"></i> Inventario
+                        </button>
+                        <button class="btn btn-secondary" id="btnCashReport" onclick="selectReportType('cash')">
+                            <i class="fas fa-calculator"></i> Cajas
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-bar">
+                <div class="filter-group" id="filterDateGroup">
+                    <label for="filterDate">Fecha:</label>
+                    <input type="date" id="filterDate" class="form-control" onchange="loadReport()">
+                </div>
+                <div class="filter-group" id="filterStartDateGroup" style="display: none;">
+                    <label for="filterStartDate">Desde:</label>
+                    <input type="date" id="filterStartDate" class="form-control" onchange="loadReport()">
+                </div>
+                <div class="filter-group" id="filterEndDateGroup" style="display: none;">
+                    <label for="filterEndDate">Hasta:</label>
+                    <input type="date" id="filterEndDate" class="form-control" onchange="loadReport()">
+                </div>
+                <div class="filter-group" id="filterClientGroup" style="display: none;">
+                    <label for="filterClient">Cliente:</label>
+                    <select id="filterClient" class="form-control" onchange="loadReport()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group" id="filterProductGroup" style="display: none;">
+                    <label for="filterProduct">Producto:</label>
+                    <select id="filterProduct" class="form-control" onchange="loadReport()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Report Content -->
+            <div id="reportContent">
+                <!-- Dynamic content -->
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        let currentReportType = 'daily';
+        let salesChart = null;
+        let expensesChart = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date();
+            document.getElementById('filterDate').value = today.toISOString().split('T')[0];
+            
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+            
+            loadFilters();
+            loadReport();
+        });
+
+        async function loadFilters() {
+            try {
+                const [clientsResult, productsResult] = await Promise.all([
+                    Utils.fetch('/api/clients'),
+                    Utils.fetch('/api/products')
+                ]);
+                
+                const clientSelect = document.getElementById('filterClient');
+                clientsResult.clients.forEach(c => {
+                    clientSelect.innerHTML += `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`;
+                });
+                
+                const productSelect = document.getElementById('filterProduct');
+                productsResult.products.forEach(p => {
+                    productSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
+                });
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+
+        function selectReportType(type) {
+            currentReportType = type;
+            
+            // Update buttons
+            document.querySelectorAll('.page-actions + .card .btn').forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+            });
+            document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}Report`).classList.remove('btn-secondary');
+            document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}Report`).classList.add('btn-primary');
+            
+            // Show/hide filters
+            const showDate = type === 'daily';
+            const showRange = type !== 'daily';
+            const showClient = type === 'sales';
+            const showProduct = type === 'sales' || type === 'inventory';
+            
+            document.getElementById('filterDateGroup').style.display = showDate ? 'flex' : 'none';
+            document.getElementById('filterStartDateGroup').style.display = showRange ? 'flex' : 'none';
+            document.getElementById('filterEndDateGroup').style.display = showRange ? 'flex' : 'none';
+            document.getElementById('filterClientGroup').style.display = showClient ? 'flex' : 'none';
+            document.getElementById('filterProductGroup').style.display = showProduct ? 'flex' : 'none';
+            
+            loadReport();
+        }
+
+        async function loadReport() {
+            try {
+                Utils.showLoading();
+                
+                switch (currentReportType) {
+                    case 'daily':
+                        await loadDailyReport();
+                        break;
+                    case 'sales':
+                        await loadSalesReport();
+                        break;
+                    case 'expenses':
+                        await loadExpensesReport();
+                        break;
+                    case 'inventory':
+                        await loadInventoryReport();
+                        break;
+                    case 'cash':
+                        await loadCashReport();
+                        break;
+                }
+            } catch (error) {
+                Utils.showToast('Error al cargar el reporte', 'danger');
+                console.error(error);
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        async function loadDailyReport() {
+            const date = document.getElementById('filterDate').value;
+            const result = await Utils.fetch(`/api/reports/daily?date=${date}`);
+            const report = result.report;
+            
+            const content = document.getElementById('reportContent');
+            content.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon sales"><i class="fas fa-shopping-cart"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(report.sales.stats.totalSales)}</h3>
+                            <p>Ventas (${report.sales.count} transacciones)</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon expenses"><i class="fas fa-arrow-down"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(report.expenses.stats.totalExpenses)}</h3>
+                            <p>Gastos (${report.expenses.count} registros)</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon profit"><i class="fas fa-coins"></i></div>
+                        <div class="stat-info">
+                            <h3 class="${report.profit >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatCurrency(report.profit)}</h3>
+                            <p>Utilidad del Día</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon inventory"><i class="fas fa-warehouse"></i></div>
+                        <div class="stat-info">
+                            <h3>${report.inventory.stats.totalEntries}</h3>
+                            <p>Entradas de Inventario</p>
+                        </div>
+                    </div>
+                </div>
+                
+                ${report.cashRegister ? `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Caja del Día</h3>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Estado:</strong> <span class="badge ${report.cashRegister.status === 'closed' ? 'badge-success' : 'badge-info'}">${report.cashRegister.status === 'closed' ? 'Cerrada' : 'Abierta'}</span></p>
+                            <p><strong>Dinero inicial:</strong> ${Utils.formatCurrency(report.cashRegister.initialAmount)}</p>
+                            <p><strong>Dinero final:</strong> ${Utils.formatCurrency(report.cashRegister.expectedAmount)}</p>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="card">
+                        <div class="card-body">
+                            <p class="text-muted">No hay registro de caja para este día.</p>
+                        </div>
+                    </div>
+                `}
+            `;
+        }
+
+        async function loadSalesReport() {
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+            const clientId = document.getElementById('filterClient').value;
+            const productId = document.getElementById('filterProduct').value;
+            
+            let url = `/api/reports/sales?startDate=${startDate}&endDate=${endDate}`;
+            if (clientId) url += `&clientId=${clientId}`;
+            if (productId) url += `&productId=${productId}`;
+            
+            const result = await Utils.fetch(url);
+            const report = result.report;
+            
+            // Prepare chart data
+            const labels = Object.keys(report.salesByDay).sort();
+            const data = labels.map(date => report.salesByDay[date]);
+            
+            const content = document.getElementById('reportContent');
+            content.innerHTML = `
+                <div class="stats-grid mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon sales"><i class="fas fa-chart-line"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(report.stats.totalSales)}</h3>
+                            <p>Total de Ventas</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon info"><i class="fas fa-receipt"></i></div>
+                        <div class="stat-info">
+                            <h3>${report.stats.salesCount}</h3>
+                            <p>Número de Ventas</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon profit"><i class="fas fa-calculator"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(report.stats.averageSale)}</h3>
+                            <p>Promedio por Venta</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container mb-3">
+                    <div class="chart-header"><h3>Ventas por Día</h3></div>
+                    <canvas id="salesReportChart"></canvas>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Listado de Ventas</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Referencia</th>
+                                        <th>Cliente</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${report.sales.length === 0 ? '<tr><td colspan="4" class="text-center">No hay ventas</td></tr>' :
+                                        report.sales.map(s => `
+                                            <tr>
+                                                <td>${Utils.formatDate(s.date)}</td>
+                                                <td><code>${s.reference}</code></td>
+                                                <td>${Utils.escapeHtml(s.clientName)}</td>
+                                                <td><strong>${Utils.formatCurrency(s.total)}</strong></td>
+                                            </tr>
+                                        `).join('')
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Create chart
+            if (labels.length > 0) {
+                const ctx = document.getElementById('salesReportChart').getContext('2d');
+                if (salesChart) salesChart.destroy();
+                salesChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels.map(d => Utils.formatDate(d)),
+                        datasets: [{
+                            label: 'Ventas',
+                            data: data,
+                            backgroundColor: 'rgba(34, 197, 94, 0.5)',
+                            borderColor: 'rgb(34, 197, 94)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        async function loadExpensesReport() {
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+            
+            const result = await Utils.fetch(`/api/reports/expenses?startDate=${startDate}&endDate=${endDate}`);
+            const report = result.report;
+            
+            const labels = Object.keys(report.expensesByDay).sort();
+            const data = labels.map(date => report.expensesByDay[date]);
+            
+            const content = document.getElementById('reportContent');
+            content.innerHTML = `
+                <div class="stats-grid mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon expenses"><i class="fas fa-arrow-down"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(report.stats.totalExpenses)}</h3>
+                            <p>Total de Gastos</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon info"><i class="fas fa-receipt"></i></div>
+                        <div class="stat-info">
+                            <h3>${report.stats.expensesCount}</h3>
+                            <p>Número de Gastos</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container mb-3">
+                    <div class="chart-header"><h3>Gastos por Día</h3></div>
+                    <canvas id="expensesReportChart"></canvas>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Listado de Gastos</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Referencia</th>
+                                        <th>Concepto</th>
+                                        <th>Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${report.expenses.length === 0 ? '<tr><td colspan="4" class="text-center">No hay gastos</td></tr>' :
+                                        report.expenses.map(e => `
+                                            <tr>
+                                                <td>${Utils.formatDate(e.date)}</td>
+                                                <td><code>${e.reference}</code></td>
+                                                <td>${Utils.escapeHtml(e.concept)}</td>
+                                                <td><strong class="text-danger">${Utils.formatCurrency(e.amount)}</strong></td>
+                                            </tr>
+                                        `).join('')
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            if (labels.length > 0) {
+                const ctx = document.getElementById('expensesReportChart').getContext('2d');
+                if (expensesChart) expensesChart.destroy();
+                expensesChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels.map(d => Utils.formatDate(d)),
+                        datasets: [{
+                            label: 'Gastos',
+                            data: data,
+                            backgroundColor: 'rgba(239, 68, 68, 0.5)',
+                            borderColor: 'rgb(239, 68, 68)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+        }
+
+        async function loadInventoryReport() {
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+            const productId = document.getElementById('filterProduct').value;
+            
+            let url = `/api/reports/inventory?startDate=${startDate}&endDate=${endDate}`;
+            if (productId) url += `&productId=${productId}`;
+            
+            const result = await Utils.fetch(url);
+            const report = result.report;
+            
+            const content = document.getElementById('reportContent');
+            content.innerHTML = `
+                <div class="stats-grid mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon inventory"><i class="fas fa-arrow-up"></i></div>
+                        <div class="stat-info">
+                            <h3>${report.stats.totalEntries}</h3>
+                            <p>Unidades Ingresadas</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon info"><i class="fas fa-clipboard-list"></i></div>
+                        <div class="stat-info">
+                            <h3>${report.stats.entriesCount}</h3>
+                            <p>Entradas Registradas</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h3 class="card-title">Stock Actual</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Producto</th>
+                                        <th>Stock</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${report.currentStock.map(p => `
+                                        <tr>
+                                            <td>${p.id}</td>
+                                            <td>${Utils.escapeHtml(p.name)}</td>
+                                            <td>
+                                                <span class="badge ${p.stock === 0 ? 'badge-danger' : p.stock < 10 ? 'badge-warning' : 'badge-success'}">
+                                                    ${p.stock}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Historial de Entradas</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Referencia</th>
+                                        <th>Producto</th>
+                                        <th>Cantidad</th>
+                                        <th>Origen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${report.entries.length === 0 ? '<tr><td colspan="5" class="text-center">No hay entradas</td></tr>' :
+                                        report.entries.map(e => `
+                                            <tr>
+                                                <td>${Utils.formatDate(e.date)}</td>
+                                                <td><code>${e.reference}</code></td>
+                                                <td>${Utils.escapeHtml(e.productName)}</td>
+                                                <td><span class="badge badge-success">+${e.quantity}</span></td>
+                                                <td>${Utils.escapeHtml(e.origin)}</td>
+                                            </tr>
+                                        `).join('')
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadCashReport() {
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+            
+            const result = await Utils.fetch(`/api/reports/cash?startDate=${startDate}&endDate=${endDate}`);
+            const report = result.report;
+            
+            const content = document.getElementById('reportContent');
+            content.innerHTML = `
+                <div class="stats-grid mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon sales"><i class="fas fa-chart-line"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(report.totals.totalSales)}</h3>
+                            <p>Total Ventas</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon expenses"><i class="fas fa-arrow-down"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(report.totals.totalExpenses)}</h3>
+                            <p>Total Gastos</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon profit"><i class="fas fa-coins"></i></div>
+                        <div class="stat-info">
+                            <h3 class="${(report.totals.totalSales - report.totals.totalExpenses) >= 0 ? 'text-success' : 'text-danger'}">
+                                ${Utils.formatCurrency(report.totals.totalSales - report.totals.totalExpenses)}
+                            </h3>
+                            <p>Utilidad Total</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Historial de Cajas</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Referencia</th>
+                                        <th>Inicial</th>
+                                        <th>Ventas</th>
+                                        <th>Gastos</th>
+                                        <th>Final</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${report.registers.length === 0 ? '<tr><td colspan="6" class="text-center">No hay registros</td></tr>' :
+                                        report.registers.map(r => `
+                                            <tr>
+                                                <td>${Utils.formatDate(r.date)}</td>
+                                                <td><code>${r.reference}</code></td>
+                                                <td>${Utils.formatCurrency(r.initialAmount)}</td>
+                                                <td class="text-success">${Utils.formatCurrency(r.totalSales)}</td>
+                                                <td class="text-danger">${Utils.formatCurrency(r.totalExpenses)}</td>
+                                                <td><strong>${Utils.formatCurrency(r.expectedAmount)}</strong></td>
+                                            </tr>
+                                        `).join('')
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

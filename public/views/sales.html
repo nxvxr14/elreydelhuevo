@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ventas - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/pos" class="nav-item"><i class="fas fa-cash-register"></i><span>Punto de Venta</span></a>
+                <a href="/sales" class="nav-item active"><i class="fas fa-shopping-cart"></i><span>Ventas</span></a>
+                <a href="/expenses" class="nav-item"><i class="fas fa-money-bill-wave"></i><span>Gastos</span></a>
+                <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
+                <a href="/categories" class="nav-item"><i class="fas fa-tags"></i><span>Categorías</span></a>
+                <a href="/clients" class="nav-item"><i class="fas fa-users"></i><span>Clientes</span></a>
+                <a href="/inventory" class="nav-item"><i class="fas fa-warehouse"></i><span>Inventario</span></a>
+                <a href="/cash-register" class="nav-item"><i class="fas fa-calculator"></i><span>Caja</span></a>
+                <a href="/reports" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Ventas</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showManualSaleModal()">
+                        <i class="fas fa-plus"></i> Nueva Venta Manual
+                    </button>
+                </div>
+            </div>
+
+            <div class="filters-bar">
+                <div class="filter-group">
+                    <label for="filterStartDate">Desde:</label>
+                    <input type="date" id="filterStartDate" class="form-control" onchange="loadSales()">
+                </div>
+                <div class="filter-group">
+                    <label for="filterEndDate">Hasta:</label>
+                    <input type="date" id="filterEndDate" class="form-control" onchange="loadSales()">
+                </div>
+                <div class="filter-group">
+                    <label for="filterClient">Cliente:</label>
+                    <select id="filterClient" class="form-control" onchange="loadSales()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterProduct">Producto:</label>
+                    <select id="filterProduct" class="form-control" onchange="loadSales()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Referencia</th>
+                                    <th>Cliente</th>
+                                    <th>Productos</th>
+                                    <th>Total</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesTable">
+                                <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="salesPagination"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="saleDetailModal">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Detalle de Venta</h3>
+                <button class="modal-close" onclick="closeSaleDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="saleDetailContent">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSaleDetailModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Sale Modal -->
+    <div class="modal-overlay" id="manualSaleModal">
+        <div class="modal" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-plus"></i> Nueva Venta Manual</h3>
+                <button class="modal-close" onclick="closeManualSaleModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="manualSaleForm" onsubmit="event.preventDefault(); saveManualSale();">
+                    <div class="form-group">
+                        <label for="saleClient">Cliente *</label>
+                        <select id="saleClient" class="form-control" required>
+                            <option value="">Seleccionar cliente...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="saleDate">Fecha</label>
+                        <input type="date" id="saleDate" class="form-control">
+                    </div>
+                    
+                    <hr style="border-color: var(--border-color); margin: 1rem 0;">
+                    
+                    <h4 style="margin-bottom: 1rem;">Productos</h4>
+                    
+                    <div class="d-flex gap-1 mb-2" style="flex-wrap: wrap;">
+                        <select id="addProductSelect" class="form-control" style="flex: 2; min-width: 200px;">
+                            <option value="">Seleccionar producto...</option>
+                        </select>
+                        <input type="text" id="addProductQty" class="form-control" placeholder="Cantidad" style="flex: 1; min-width: 100px;">
+                        <input type="text" id="addProductPrice" class="form-control" placeholder="Precio unit." style="flex: 1; min-width: 120px;">
+                        <button type="button" class="btn btn-secondary" onclick="addProductToManualSale()">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Cantidad</th>
+                                    <th>Precio Unit.</th>
+                                    <th>Subtotal</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="manualSaleItems">
+                                <tr><td colspan="5" class="text-center text-muted">Agregue productos a la venta</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <hr style="border-color: var(--border-color); margin: 1rem 0;">
+                    
+                    <div class="d-flex justify-between align-center mb-2">
+                        <strong style="font-size: 1.25rem;">Total:</strong>
+                        <span id="manualSaleTotal" style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">$ 0</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="saleNote">Nota (opcional)</label>
+                        <textarea id="saleNote" class="form-control" rows="2" maxlength="200" placeholder="Nota adicional..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeManualSaleModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveManualSale()">
+                    <i class="fas fa-save"></i> Guardar Venta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        let sales = [];
+        let clients = [];
+        let products = [];
+        let currentPage = 1;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set default dates to current month
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+            
+            loadFilters();
+            loadSales();
+        });
+
+        async function loadFilters() {
+            try {
+                const [clientsResult, productsResult] = await Promise.all([
+                    Utils.fetch('/api/clients'),
+                    Utils.fetch('/api/products')
+                ]);
+                
+                clients = clientsResult.clients;
+                products = productsResult.products;
+                
+                const clientSelect = document.getElementById('filterClient');
+                clients.forEach(c => {
+                    clientSelect.innerHTML += `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`;
+                });
+                
+                const productSelect = document.getElementById('filterProduct');
+                products.forEach(p => {
+                    productSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
+                });
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+
+        async function loadSales() {
+            try {
+                Utils.showLoading();
+                
+                const startDate = document.getElementById('filterStartDate').value;
+                const endDate = document.getElementById('filterEndDate').value;
+                const clientId = document.getElementById('filterClient').value;
+                const productId = document.getElementById('filterProduct').value;
+                
+                let url = `/api/sales?startDate=${startDate}&endDate=${endDate}`;
+                if (clientId) url += `&clientId=${clientId}`;
+                if (productId) url += `&productId=${productId}`;
+                
+                const result = await Utils.fetch(url);
+                sales = result.sales.reverse(); // Últimos primero
+                currentPage = 1;
+                renderSales();
+            } catch (error) {
+                Utils.showToast('Error al cargar las ventas', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function renderSales() {
+            const table = document.getElementById('salesTable');
+            
+            if (sales.length === 0) {
+                table.innerHTML = '<tr><td colspan="6" class="text-center"><div class="empty-state"><i class="fas fa-shopping-cart"></i><h3>No hay ventas</h3></div></td></tr>';
+                document.getElementById('salesPagination').innerHTML = '';
+                return;
+            }
+            
+            const { items, currentPage: page, totalPages } = Utils.paginate(sales, currentPage, 10);
+            currentPage = page;
+            
+            table.innerHTML = items.map(sale => {
+                const totalItems = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+                return `
+                    <tr>
+                        <td>${Utils.formatDate(sale.date)}</td>
+                        <td><code>${sale.reference}</code></td>
+                        <td>${Utils.escapeHtml(sale.clientName)}</td>
+                        <td>${totalItems} productos</td>
+                        <td><strong>${Utils.formatCurrency(sale.total)}</strong></td>
+                        <td class="table-actions">
+                            <button class="btn btn-sm btn-info" onclick="viewSaleDetail('${sale.id}')" title="Ver detalle">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteSale('${sale.id}')" title="Eliminar">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            Utils.renderPagination('salesPagination', currentPage, totalPages, 'goToPage');
+        }
+        
+        function goToPage(page) {
+            currentPage = page;
+            renderSales();
+        }
+
+        async function viewSaleDetail(id) {
+            try {
+                Utils.showLoading();
+                const result = await Utils.fetch(`/api/sales/${id}`);
+                const sale = result.sale;
+                
+                const content = document.getElementById('saleDetailContent');
+                content.innerHTML = `
+                    <div class="mb-2">
+                        <strong>Referencia:</strong> <code>${sale.reference}</code><br>
+                        <strong>Fecha:</strong> ${Utils.formatDate(sale.date)}<br>
+                        <strong>Cliente:</strong> ${Utils.escapeHtml(sale.clientName)}
+                    </div>
+                    
+                    <h4 class="mb-1">Productos</h4>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Precio Unit.</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${sale.items.map(item => `
+                                <tr>
+                                    <td>${Utils.escapeHtml(item.productName)}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>${Utils.formatCurrency(item.unitPrice)}</td>
+                                    <td>${Utils.formatCurrency(item.subtotal)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    
+                    <div class="mt-2">
+                        <strong>Total:</strong> ${Utils.formatCurrency(sale.total)}<br>
+                        <strong>Recibido:</strong> ${Utils.formatCurrency(sale.received)}<br>
+                        <strong>Cambio:</strong> ${Utils.formatCurrency(sale.change)}
+                    </div>
+                    
+                    ${sale.note ? `<div class="mt-2"><strong>Nota:</strong> ${Utils.escapeHtml(sale.note)}</div>` : ''}
+                `;
+                
+                document.getElementById('saleDetailModal').classList.add('active');
+            } catch (error) {
+                Utils.showToast('Error al cargar el detalle', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function closeSaleDetailModal() {
+            document.getElementById('saleDetailModal').classList.remove('active');
+        }
+
+        async function deleteSale(id) {
+            const confirmed = await Utils.confirm('¿Eliminar esta venta? Se restaurará el stock de los productos.');
+            if (!confirmed) return;
+            
+            const verified = await Utils.promptPassword('Ingrese la contraseña para eliminar');
+            if (!verified) return;
+            
+            try {
+                Utils.showLoading();
+                await Utils.fetch(`/api/sales/${id}`, { method: 'DELETE' });
+                Utils.showToast('Venta eliminada', 'success');
+                loadSales();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+        
+        // ============ MANUAL SALE FUNCTIONS ============
+        let manualSaleItems = [];
+        
+        function showManualSaleModal() {
+            manualSaleItems = [];
+            document.getElementById('manualSaleForm').reset();
+            document.getElementById('saleDate').value = new Date().toISOString().split('T')[0];
+            
+            // Populate client select
+            const clientSelect = document.getElementById('saleClient');
+            clientSelect.innerHTML = '<option value="">Seleccionar cliente...</option>';
+            clients.forEach(c => {
+                clientSelect.innerHTML += `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`;
+            });
+            
+            // Populate product select
+            const productSelect = document.getElementById('addProductSelect');
+            productSelect.innerHTML = '<option value="">Seleccionar producto...</option>';
+            products.forEach(p => {
+                productSelect.innerHTML += `<option value="${p.id}" data-price="${p.price}" data-stock="${p.stock}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatNumber(p.stock)})</option>`;
+            });
+            
+            // Setup money inputs
+            Utils.setupMoneyInput(document.getElementById('addProductQty'));
+            Utils.setupMoneyInput(document.getElementById('addProductPrice'));
+            
+            renderManualSaleItems();
+            document.getElementById('manualSaleModal').classList.add('active');
+        }
+        
+        function closeManualSaleModal() {
+            document.getElementById('manualSaleModal').classList.remove('active');
+        }
+        
+        function addProductToManualSale() {
+            const productSelect = document.getElementById('addProductSelect');
+            const productId = parseInt(productSelect.value);
+            const selectedOption = productSelect.options[productSelect.selectedIndex];
+            
+            if (!productId) {
+                Utils.showToast('Seleccione un producto', 'warning');
+                return;
+            }
+            
+            const qtyStr = document.getElementById('addProductQty').value;
+            const quantity = Utils.parseNumber(qtyStr);
+            
+            if (!quantity || quantity <= 0) {
+                Utils.showToast('Ingrese una cantidad válida', 'warning');
+                return;
+            }
+            
+            const priceStr = document.getElementById('addProductPrice').value;
+            let unitPrice = Utils.parseNumber(priceStr);
+            
+            // If no price entered, use product default price
+            if (!unitPrice) {
+                unitPrice = parseInt(selectedOption.dataset.price) || 0;
+            }
+            
+            const stock = parseInt(selectedOption.dataset.stock) || 0;
+            const productName = selectedOption.textContent.split(' (Stock:')[0];
+            
+            // Check if product already in list
+            const existingItem = manualSaleItems.find(item => item.productId === productId);
+            if (existingItem) {
+                const newQty = existingItem.quantity + quantity;
+                if (newQty > stock) {
+                    Utils.showToast(`Stock máximo disponible: ${Utils.formatNumber(stock)}`, 'warning');
+                    return;
+                }
+                existingItem.quantity = newQty;
+                existingItem.unitPrice = unitPrice;
+            } else {
+                if (quantity > stock) {
+                    Utils.showToast(`Stock máximo disponible: ${Utils.formatNumber(stock)}`, 'warning');
+                    return;
+                }
+                manualSaleItems.push({
+                    productId: productId,
+                    productName: productName,
+                    quantity: quantity,
+                    unitPrice: unitPrice,
+                    maxStock: stock
+                });
+            }
+            
+            // Clear inputs
+            productSelect.value = '';
+            document.getElementById('addProductQty').value = '';
+            document.getElementById('addProductPrice').value = '';
+            
+            renderManualSaleItems();
+        }
+        
+        function removeManualSaleItem(index) {
+            manualSaleItems.splice(index, 1);
+            renderManualSaleItems();
+        }
+        
+        function updateManualSaleItemQty(index, qtyStr) {
+            const qty = Utils.parseNumber(qtyStr);
+            if (qty <= 0) {
+                removeManualSaleItem(index);
+                return;
+            }
+            if (qty > manualSaleItems[index].maxStock) {
+                Utils.showToast(`Stock máximo: ${Utils.formatNumber(manualSaleItems[index].maxStock)}`, 'warning');
+                return;
+            }
+            manualSaleItems[index].quantity = qty;
+            renderManualSaleItems();
+        }
+        
+        function updateManualSaleItemPrice(index, priceStr) {
+            const price = Utils.parseNumber(priceStr);
+            if (price < 0) {
+                Utils.showToast('El precio no puede ser negativo', 'warning');
+                return;
+            }
+            manualSaleItems[index].unitPrice = price;
+            renderManualSaleItems();
+        }
+        
+        function renderManualSaleItems() {
+            const tbody = document.getElementById('manualSaleItems');
+            
+            if (manualSaleItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Agregue productos a la venta</td></tr>';
+                document.getElementById('manualSaleTotal').textContent = '$ 0';
+                return;
+            }
+            
+            let total = 0;
+            tbody.innerHTML = manualSaleItems.map((item, index) => {
+                const subtotal = item.quantity * item.unitPrice;
+                total += subtotal;
+                return `
+                    <tr>
+                        <td>${Utils.escapeHtml(item.productName)}</td>
+                        <td>
+                            <input type="text" class="form-control" style="width: 80px;" 
+                                   value="${Utils.formatNumber(item.quantity)}" 
+                                   onchange="updateManualSaleItemQty(${index}, this.value)">
+                        </td>
+                        <td>
+                            <input type="text" class="form-control" style="width: 100px;" 
+                                   value="${Utils.formatNumber(item.unitPrice)}" 
+                                   onchange="updateManualSaleItemPrice(${index}, this.value)">
+                        </td>
+                        <td>${Utils.formatCurrency(subtotal)}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-danger" onclick="removeManualSaleItem(${index})">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            document.getElementById('manualSaleTotal').textContent = Utils.formatCurrency(total);
+        }
+        
+        async function saveManualSale() {
+            const clientId = document.getElementById('saleClient').value;
+            
+            if (!clientId) {
+                Utils.showToast('Seleccione un cliente', 'warning');
+                return;
+            }
+            
+            if (manualSaleItems.length === 0) {
+                Utils.showToast('Agregue al menos un producto', 'warning');
+                return;
+            }
+            
+            const total = manualSaleItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            
+            const saleData = {
+                clientId: parseInt(clientId),
+                items: manualSaleItems.map(item => ({
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice
+                })),
+                received: total,
+                date: document.getElementById('saleDate').value,
+                note: document.getElementById('saleNote').value.substring(0, 200)
+            };
+            
+            try {
+                Utils.showLoading();
+                
+                await Utils.fetch('/api/sales/manual', {
+                    method: 'POST',
+                    body: JSON.stringify(saleData)
+                });
+                
+                Utils.showToast('Venta registrada correctamente', 'success');
+                closeManualSaleModal();
+                loadSales();
+                
+            } catch (error) {
+                Utils.showToast(error.message || 'Error al registrar la venta', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+    </script>
+</body>
+</html>

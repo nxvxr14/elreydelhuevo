@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item active">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/pos" class="nav-item">
+                    <i class="fas fa-cash-register"></i>
+                    <span>Punto de Venta</span>
+                </a>
+                <a href="/sales" class="nav-item">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Ventas</span>
+                </a>
+                <a href="/expenses" class="nav-item">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <span>Gastos</span>
+                </a>
+                <a href="/products" class="nav-item">
+                    <i class="fas fa-box"></i>
+                    <span>Productos</span>
+                </a>
+                <a href="/categories" class="nav-item">
+                    <i class="fas fa-tags"></i>
+                    <span>Categorías</span>
+                </a>
+                <a href="/clients" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Clientes</span>
+                </a>
+                <a href="/inventory" class="nav-item">
+                    <i class="fas fa-warehouse"></i>
+                    <span>Inventario</span>
+                </a>
+                <a href="/cash-register" class="nav-item">
+                    <i class="fas fa-calculator"></i>
+                    <span>Caja</span>
+                </a>
+                <a href="/reports" class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Reportes</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Dashboard</h1>
+                <div class="month-selector">
+                    <label for="monthSelect">Mes:</label>
+                    <select id="monthSelect" class="form-control">
+                        <!-- Meses se cargan dinámicamente -->
+                    </select>
+                    <select id="yearSelect" class="form-control">
+                        <!-- Años se cargan dinámicamente -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon sales">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalSales">$ 0</h3>
+                        <p>Ventas del Mes</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon expenses">
+                        <i class="fas fa-arrow-down"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalExpenses">$ 0</h3>
+                        <p>Gastos del Mes</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon profit">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalProfit">$ 0</h3>
+                        <p>Utilidad del Mes</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon inventory">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="lowStockCount">0</h3>
+                        <p>Productos con Bajo Stock</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cash Register Status -->
+            <div class="card mb-3" id="cashStatusCard">
+                <div class="card-header">
+                    <h3 class="card-title">Estado de la Caja</h3>
+                </div>
+                <div class="card-body">
+                    <div id="cashStatus">
+                        <p>Cargando...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Ventas por Día</h3>
+                    </div>
+                    <canvas id="salesChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Gastos por Día</h3>
+                    </div>
+                    <canvas id="expensesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container mb-3">
+                <div class="chart-header">
+                    <h3>Ventas vs Gastos</h3>
+                </div>
+                <canvas id="combinedChart"></canvas>
+            </div>
+
+            <!-- Low Stock Products -->
+            <div class="card" id="lowStockCard" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">Productos con Bajo Stock</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Stock Actual</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lowStockTable">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>

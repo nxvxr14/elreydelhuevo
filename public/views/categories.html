@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categorías - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/pos" class="nav-item"><i class="fas fa-cash-register"></i><span>Punto de Venta</span></a>
+                <a href="/sales" class="nav-item"><i class="fas fa-shopping-cart"></i><span>Ventas</span></a>
+                <a href="/expenses" class="nav-item"><i class="fas fa-money-bill-wave"></i><span>Gastos</span></a>
+                <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
+                <a href="/categories" class="nav-item active"><i class="fas fa-tags"></i><span>Categorías</span></a>
+                <a href="/clients" class="nav-item"><i class="fas fa-users"></i><span>Clientes</span></a>
+                <a href="/inventory" class="nav-item"><i class="fas fa-warehouse"></i><span>Inventario</span></a>
+                <a href="/cash-register" class="nav-item"><i class="fas fa-calculator"></i><span>Caja</span></a>
+                <a href="/reports" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Categorías</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showCategoryModal()">
+                        <i class="fas fa-plus"></i> Nueva Categoría
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Fecha de Creación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="categoriesTable">
+                                <tr><td colspan="4" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="categoryModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="categoryModalTitle">Nueva Categoría</h3>
+                <button class="modal-close" onclick="closeCategoryModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="categoryForm" onsubmit="event.preventDefault(); saveCategory();">
+                    <input type="hidden" id="categoryId">
+                    <div class="form-group">
+                        <label for="categoryName">Nombre *</label>
+                        <input type="text" id="categoryName" class="form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCategoryModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveCategory()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        let categories = [];
+
+        document.addEventListener('DOMContentLoaded', loadCategories);
+
+        async function loadCategories() {
+            try {
+                Utils.showLoading();
+                const result = await Utils.fetch('/api/categories');
+                categories = result.categories;
+                renderCategories();
+            } catch (error) {
+                Utils.showToast('Error al cargar las categorías', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function renderCategories() {
+            const table = document.getElementById('categoriesTable');
+            
+            if (categories.length === 0) {
+                table.innerHTML = '<tr><td colspan="4" class="text-center">No hay categorías</td></tr>';
+                return;
+            }
+            
+            table.innerHTML = categories.map(cat => `
+                <tr>
+                    <td>${cat.id}</td>
+                    <td>${Utils.escapeHtml(cat.name)}</td>
+                    <td>${Utils.formatDateTime(cat.createdAt)}</td>
+                    <td class="table-actions">
+                        <button class="btn btn-sm btn-info" onclick="editCategory(${cat.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteCategory(${cat.id})" ${cat.id === 1 ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function showCategoryModal(category = null) {
+            document.getElementById('categoryForm').reset();
+            document.getElementById('categoryId').value = '';
+            
+            if (category) {
+                document.getElementById('categoryModalTitle').textContent = 'Editar Categoría';
+                document.getElementById('categoryId').value = category.id;
+                document.getElementById('categoryName').value = category.name;
+            } else {
+                document.getElementById('categoryModalTitle').textContent = 'Nueva Categoría';
+            }
+            
+            document.getElementById('categoryModal').classList.add('active');
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').classList.remove('active');
+        }
+
+        async function saveCategory() {
+            const id = document.getElementById('categoryId').value;
+            const name = document.getElementById('categoryName').value;
+            
+            if (!name) {
+                Utils.showToast('El nombre es requerido', 'warning');
+                return;
+            }
+            
+            try {
+                Utils.showLoading();
+                
+                if (id) {
+                    const verified = await Utils.promptPassword('Ingrese la contraseña para editar');
+                    if (!verified) { Utils.hideLoading(); return; }
+                    
+                    await Utils.fetch(`/api/categories/${id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ name })
+                    });
+                    Utils.showToast('Categoría actualizada', 'success');
+                } else {
+                    await Utils.fetch('/api/categories', {
+                        method: 'POST',
+                        body: JSON.stringify({ name })
+                    });
+                    Utils.showToast('Categoría creada', 'success');
+                }
+                
+                closeCategoryModal();
+                loadCategories();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function editCategory(id) {
+            const category = categories.find(c => c.id === id);
+            if (category) showCategoryModal(category);
+        }
+
+        async function deleteCategory(id) {
+            if (id === 1) {
+                Utils.showToast('No se puede eliminar la categoría General', 'warning');
+                return;
+            }
+            
+            const confirmed = await Utils.confirm('¿Eliminar esta categoría?');
+            if (!confirmed) return;
+            
+            const verified = await Utils.promptPassword('Ingrese la contraseña para eliminar');
+            if (!verified) return;
+            
+            try {
+                Utils.showLoading();
+                await Utils.fetch(`/api/categories/${id}`, { method: 'DELETE' });
+                Utils.showToast('Categoría eliminada', 'success');
+                loadCategories();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

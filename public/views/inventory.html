@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/pos" class="nav-item"><i class="fas fa-cash-register"></i><span>Punto de Venta</span></a>
+                <a href="/sales" class="nav-item"><i class="fas fa-shopping-cart"></i><span>Ventas</span></a>
+                <a href="/expenses" class="nav-item"><i class="fas fa-money-bill-wave"></i><span>Gastos</span></a>
+                <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
+                <a href="/categories" class="nav-item"><i class="fas fa-tags"></i><span>Categorías</span></a>
+                <a href="/clients" class="nav-item"><i class="fas fa-users"></i><span>Clientes</span></a>
+                <a href="/inventory" class="nav-item active"><i class="fas fa-warehouse"></i><span>Inventario</span></a>
+                <a href="/cash-register" class="nav-item"><i class="fas fa-calculator"></i><span>Caja</span></a>
+                <a href="/reports" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Inventario - Entradas</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showEntryModal()">
+                        <i class="fas fa-plus"></i> Nueva Entrada
+                    </button>
+                </div>
+            </div>
+
+            <div class="filters-bar">
+                <div class="filter-group">
+                    <label for="filterStartDate">Desde:</label>
+                    <input type="date" id="filterStartDate" class="form-control" onchange="loadEntries()">
+                </div>
+                <div class="filter-group">
+                    <label for="filterEndDate">Hasta:</label>
+                    <input type="date" id="filterEndDate" class="form-control" onchange="loadEntries()">
+                </div>
+                <div class="filter-group">
+                    <label for="filterProduct">Producto:</label>
+                    <select id="filterProduct" class="form-control" onchange="loadEntries()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Referencia</th>
+                                    <th>Producto</th>
+                                    <th>Cantidad</th>
+                                    <th>Origen</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="entriesTable">
+                                <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="entriesPagination"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="entryModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Nueva Entrada de Inventario</h3>
+                <button class="modal-close" onclick="closeEntryModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="entryForm" onsubmit="event.preventDefault(); saveEntry();">
+                    <div class="form-group">
+                        <label for="entryProduct">Producto *</label>
+                        <select id="entryProduct" class="form-control" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="entryQuantity">Cantidad *</label>
+                        <input type="text" id="entryQuantity" class="form-control" placeholder="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="entryOrigin">Origen *</label>
+                        <input type="text" id="entryOrigin" class="form-control" placeholder="Ej: Proveedor X, Compra local..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="entryDate">Fecha</label>
+                        <input type="date" id="entryDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="entryNote">Nota (máx. 200 caracteres)</label>
+                        <textarea id="entryNote" class="form-control" rows="2" maxlength="200"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEntryModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveEntry()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="entryDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Detalle de Entrada</h3>
+                <button class="modal-close" onclick="closeEntryDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="entryDetailContent"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEntryDetailModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        let entries = [];
+        let products = [];
+        let currentPage = 1;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+            document.getElementById('entryDate').value = today.toISOString().split('T')[0];
+            
+            loadProducts();
+            loadEntries();
+        });
+
+        async function loadProducts() {
+            try {
+                const result = await Utils.fetch('/api/products');
+                products = result.products;
+                
+                const filterSelect = document.getElementById('filterProduct');
+                const entrySelect = document.getElementById('entryProduct');
+                
+                products.forEach(p => {
+                    filterSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatNumber(p.stock)})</option>`;
+                    entrySelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
+                });
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        async function loadEntries() {
+            try {
+                Utils.showLoading();
+                const startDate = document.getElementById('filterStartDate').value;
+                const endDate = document.getElementById('filterEndDate').value;
+                const productId = document.getElementById('filterProduct').value;
+                
+                let url = `/api/inventory?startDate=${startDate}&endDate=${endDate}`;
+                if (productId) url += `&productId=${productId}`;
+                
+                const result = await Utils.fetch(url);
+                entries = result.entries.reverse(); // Últimos primero
+                currentPage = 1;
+                renderEntries();
+            } catch (error) {
+                Utils.showToast('Error al cargar las entradas', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function renderEntries() {
+            const table = document.getElementById('entriesTable');
+            
+            if (entries.length === 0) {
+                table.innerHTML = '<tr><td colspan="6" class="text-center"><div class="empty-state"><i class="fas fa-warehouse"></i><h3>No hay entradas</h3></div></td></tr>';
+                document.getElementById('entriesPagination').innerHTML = '';
+                return;
+            }
+            
+            const { items, currentPage: page, totalPages } = Utils.paginate(entries, currentPage, 10);
+            currentPage = page;
+            
+            table.innerHTML = items.map(entry => `
+                <tr>
+                    <td>${Utils.formatDate(entry.date)}</td>
+                    <td><code>${entry.reference}</code></td>
+                    <td>${Utils.escapeHtml(entry.productName)}</td>
+                    <td><span class="badge badge-success">+${Utils.formatNumber(entry.quantity)}</span></td>
+                    <td>${Utils.escapeHtml(entry.origin)}</td>
+                    <td class="table-actions">
+                        <button class="btn btn-sm btn-info" onclick="viewEntryDetail('${entry.id}')"><i class="fas fa-eye"></i></button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteEntry('${entry.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            Utils.renderPagination('entriesPagination', currentPage, totalPages, 'goToPage');
+        }
+        
+        function goToPage(page) {
+            currentPage = page;
+            renderEntries();
+        }
+
+        function showEntryModal() {
+            document.getElementById('entryForm').reset();
+            document.getElementById('entryDate').value = new Date().toISOString().split('T')[0];
+            
+            const quantityInput = document.getElementById('entryQuantity');
+            Utils.setupMoneyInput(quantityInput);
+            
+            document.getElementById('entryModal').classList.add('active');
+        }
+
+        function closeEntryModal() {
+            document.getElementById('entryModal').classList.remove('active');
+        }
+
+        async function saveEntry() {
+            const quantityStr = document.getElementById('entryQuantity').value;
+            const quantity = Utils.parseNumber(quantityStr);
+            const data = {
+                productId: document.getElementById('entryProduct').value,
+                quantity: quantity,
+                origin: document.getElementById('entryOrigin').value,
+                date: document.getElementById('entryDate').value,
+                note: document.getElementById('entryNote').value
+            };
+            
+            if (!data.productId || !quantityStr || !data.origin) {
+                Utils.showToast('Complete los campos requeridos', 'warning');
+                return;
+            }
+            
+            if (quantity <= 0) {
+                Utils.showToast('La cantidad debe ser mayor a 0', 'warning');
+                return;
+            }
+            
+            try {
+                Utils.showLoading();
+                
+                await Utils.fetch('/api/inventory', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                
+                Utils.showToast('Entrada registrada', 'success');
+                closeEntryModal();
+                loadEntries();
+                
+                // Reload products to update stock display
+                const filterSelect = document.getElementById('filterProduct');
+                const entrySelect = document.getElementById('entryProduct');
+                filterSelect.innerHTML = '<option value="">Todos</option>';
+                entrySelect.innerHTML = '';
+                loadProducts();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        async function viewEntryDetail(id) {
+            try {
+                Utils.showLoading();
+                const result = await Utils.fetch(`/api/inventory/${id}`);
+                const entry = result.entry;
+                const product = products.find(p => p.id === entry.productId);
+                
+                document.getElementById('entryDetailContent').innerHTML = `
+                    <p><strong>Referencia:</strong> <code>${entry.reference}</code></p>
+                    <p><strong>Fecha:</strong> ${Utils.formatDate(entry.date)}</p>
+                    <p><strong>Producto:</strong> ${product ? Utils.escapeHtml(product.name) : 'Producto eliminado'}</p>
+                    <p><strong>Cantidad:</strong> <span class="badge badge-success">+${Utils.formatNumber(entry.quantity)}</span></p>
+                    <p><strong>Origen:</strong> ${Utils.escapeHtml(entry.origin)}</p>
+                    ${entry.note ? `<p><strong>Nota:</strong> ${Utils.escapeHtml(entry.note)}</p>` : ''}
+                `;
+                
+                document.getElementById('entryDetailModal').classList.add('active');
+            } catch (error) {
+                Utils.showToast('Error al cargar el detalle', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function closeEntryDetailModal() {
+            document.getElementById('entryDetailModal').classList.remove('active');
+        }
+
+        async function deleteEntry(id) {
+            const confirmed = await Utils.confirm('¿Eliminar esta entrada? Se revertirá el stock del producto.');
+            if (!confirmed) return;
+            
+            const verified = await Utils.promptPassword('Ingrese la contraseña para eliminar');
+            if (!verified) return;
+            
+            try {
+                Utils.showLoading();
+                await Utils.fetch(`/api/inventory/${id}`, { method: 'DELETE' });
+                Utils.showToast('Entrada eliminada', 'success');
+                loadEntries();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

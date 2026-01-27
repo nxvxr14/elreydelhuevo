@@ -1,0 +1,14 @@
+{
+  "clients": [
+    {
+      "id": 1,
+      "name": "Consumidor Final",
+      "phone": "",
+      "email": "",
+      "address": "",
+      "createdAt": "2026-01-26T21:04:27.803Z",
+      "updatedAt": "2026-01-26T21:04:27.803Z"
+    }
+  ],
+  "lastId": 1
+}

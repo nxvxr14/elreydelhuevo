@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clientes - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/pos" class="nav-item"><i class="fas fa-cash-register"></i><span>Punto de Venta</span></a>
+                <a href="/sales" class="nav-item"><i class="fas fa-shopping-cart"></i><span>Ventas</span></a>
+                <a href="/expenses" class="nav-item"><i class="fas fa-money-bill-wave"></i><span>Gastos</span></a>
+                <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
+                <a href="/categories" class="nav-item"><i class="fas fa-tags"></i><span>Categorías</span></a>
+                <a href="/clients" class="nav-item active"><i class="fas fa-users"></i><span>Clientes</span></a>
+                <a href="/inventory" class="nav-item"><i class="fas fa-warehouse"></i><span>Inventario</span></a>
+                <a href="/cash-register" class="nav-item"><i class="fas fa-calculator"></i><span>Caja</span></a>
+                <a href="/reports" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Clientes</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showClientModal()">
+                        <i class="fas fa-plus"></i> Nuevo Cliente
+                    </button>
+                </div>
+            </div>
+
+            <div class="filters-bar">
+                <div class="filter-group">
+                    <label for="filterSearch">Buscar:</label>
+                    <input type="text" id="filterSearch" class="form-control" 
+                           placeholder="Nombre del cliente..." oninput="filterClients()">
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Teléfono</th>
+                                    <th>Total Comprado</th>
+                                    <th>Cantidad Total</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTable">
+                                <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="clientsPagination"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="clientModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="clientModalTitle">Nuevo Cliente</h3>
+                <button class="modal-close" onclick="closeClientModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="clientForm" onsubmit="event.preventDefault(); saveClient();">
+                    <input type="hidden" id="clientId">
+                    <div class="form-group">
+                        <label for="clientName">Nombre *</label>
+                        <input type="text" id="clientName" class="form-control" required>
+                    </div>
+                    
+                    <!-- Campos opcionales ocultos por defecto -->
+                    <div id="optionalFieldsToggle" style="margin-bottom: 1rem;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleOptionalFields()">
+                            <i class="fas fa-plus" id="toggleIcon"></i> <span id="toggleText">Más opciones</span>
+                        </button>
+                    </div>
+                    
+                    <div id="optionalFields" style="display: none;">
+                        <div class="form-group">
+                            <label for="clientPhone">Teléfono</label>
+                            <input type="text" id="clientPhone" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="clientEmail">Email</label>
+                            <input type="email" id="clientEmail" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="clientAddress">Dirección</label>
+                            <textarea id="clientAddress" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="clientNotes">Notas</label>
+                        <textarea id="clientNotes" class="form-control" rows="2" placeholder="Notas adicionales..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeClientModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveClient()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        let allClients = [];
+        let filteredClients = [];
+        let currentPage = 1;
+
+        document.addEventListener('DOMContentLoaded', loadClients);
+
+        async function loadClients() {
+            try {
+                Utils.showLoading();
+                const result = await Utils.fetch('/api/clients');
+                allClients = result.clients.reverse(); // Últimos primero
+                filterClients();
+            } catch (error) {
+                Utils.showToast('Error al cargar los clientes', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function filterClients() {
+            const search = document.getElementById('filterSearch').value.toLowerCase();
+            filteredClients = allClients;
+            
+            if (search) {
+                filteredClients = filteredClients.filter(c => c.name.toLowerCase().includes(search));
+            }
+            
+            currentPage = 1;
+            renderClients();
+        }
+
+        function renderClients() {
+            const table = document.getElementById('clientsTable');
+            
+            if (filteredClients.length === 0) {
+                table.innerHTML = '<tr><td colspan="6" class="text-center"><div class="empty-state"><i class="fas fa-users"></i><h3>No hay clientes</h3></div></td></tr>';
+                document.getElementById('clientsPagination').innerHTML = '';
+                return;
+            }
+            
+            const { items, currentPage: page, totalPages } = Utils.paginate(filteredClients, currentPage, 10);
+            currentPage = page;
+            
+            table.innerHTML = items.map(client => `
+                <tr>
+                    <td>${client.id}</td>
+                    <td>${Utils.escapeHtml(client.name)}</td>
+                    <td>${Utils.escapeHtml(client.phone || '-')}</td>
+                    <td>${Utils.formatCurrency(client.totalPurchased)}</td>
+                    <td>${client.totalQuantity} unidades</td>
+                    <td class="table-actions">
+                        <button class="btn btn-sm btn-info" onclick="editClient(${client.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteClient(${client.id})"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            Utils.renderPagination('clientsPagination', currentPage, totalPages, 'goToPage');
+        }
+        
+        function goToPage(page) {
+            currentPage = page;
+            renderClients();
+        }
+
+        function showClientModal(client = null) {
+            document.getElementById('clientForm').reset();
+            document.getElementById('clientId').value = '';
+            
+            // Ocultar campos opcionales por defecto
+            document.getElementById('optionalFields').style.display = 'none';
+            document.getElementById('toggleIcon').className = 'fas fa-plus';
+            document.getElementById('toggleText').textContent = 'Más opciones';
+            
+            if (client) {
+                document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
+                document.getElementById('clientId').value = client.id;
+                document.getElementById('clientName').value = client.name;
+                document.getElementById('clientPhone').value = client.phone || '';
+                document.getElementById('clientEmail').value = client.email || '';
+                document.getElementById('clientAddress').value = client.address || '';
+                document.getElementById('clientNotes').value = client.notes || '';
+                
+                // Si hay datos opcionales, mostrar la sección
+                if (client.phone || client.email || client.address) {
+                    document.getElementById('optionalFields').style.display = 'block';
+                    document.getElementById('toggleIcon').className = 'fas fa-minus';
+                    document.getElementById('toggleText').textContent = 'Menos opciones';
+                }
+            } else {
+                document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
+            }
+            
+            document.getElementById('clientModal').classList.add('active');
+        }
+        
+        function toggleOptionalFields() {
+            const optionalFields = document.getElementById('optionalFields');
+            const icon = document.getElementById('toggleIcon');
+            const text = document.getElementById('toggleText');
+            
+            if (optionalFields.style.display === 'none') {
+                optionalFields.style.display = 'block';
+                icon.className = 'fas fa-minus';
+                text.textContent = 'Menos opciones';
+            } else {
+                optionalFields.style.display = 'none';
+                icon.className = 'fas fa-plus';
+                text.textContent = 'Más opciones';
+            }
+        }
+
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('active');
+        }
+
+        async function saveClient() {
+            const id = document.getElementById('clientId').value;
+            const data = {
+                name: document.getElementById('clientName').value,
+                phone: document.getElementById('clientPhone').value,
+                email: document.getElementById('clientEmail').value,
+                address: document.getElementById('clientAddress').value,
+                notes: document.getElementById('clientNotes').value
+            };
+            
+            if (!data.name) {
+                Utils.showToast('El nombre es requerido', 'warning');
+                return;
+            }
+            
+            try {
+                Utils.showLoading();
+                
+                if (id) {
+                    const verified = await Utils.promptPassword('Ingrese la contraseña para editar');
+                    if (!verified) { Utils.hideLoading(); return; }
+                    
+                    await Utils.fetch(`/api/clients/${id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(data)
+                    });
+                    Utils.showToast('Cliente actualizado', 'success');
+                } else {
+                    await Utils.fetch('/api/clients', {
+                        method: 'POST',
+                        body: JSON.stringify(data)
+                    });
+                    Utils.showToast('Cliente creado', 'success');
+                }
+                
+                closeClientModal();
+                loadClients();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function editClient(id) {
+            const client = allClients.find(c => c.id === id);
+            if (client) showClientModal(client);
+        }
+
+        async function deleteClient(id) {
+            const confirmed = await Utils.confirm('¿Eliminar este cliente?');
+            if (!confirmed) return;
+            
+            const verified = await Utils.promptPassword('Ingrese la contraseña para eliminar');
+            if (!verified) return;
+            
+            try {
+                Utils.showLoading();
+                await Utils.fetch(`/api/clients/${id}`, { method: 'DELETE' });
+                Utils.showToast('Cliente eliminado', 'success');
+                loadClients();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

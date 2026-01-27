@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caja - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/pos" class="nav-item"><i class="fas fa-cash-register"></i><span>Punto de Venta</span></a>
+                <a href="/sales" class="nav-item"><i class="fas fa-shopping-cart"></i><span>Ventas</span></a>
+                <a href="/expenses" class="nav-item"><i class="fas fa-money-bill-wave"></i><span>Gastos</span></a>
+                <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
+                <a href="/categories" class="nav-item"><i class="fas fa-tags"></i><span>Categorías</span></a>
+                <a href="/clients" class="nav-item"><i class="fas fa-users"></i><span>Clientes</span></a>
+                <a href="/inventory" class="nav-item"><i class="fas fa-warehouse"></i><span>Inventario</span></a>
+                <a href="/cash-register" class="nav-item active"><i class="fas fa-calculator"></i><span>Caja</span></a>
+                <a href="/reports" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Caja Registradora</h1>
+                <div class="page-actions">
+                    <a href="/pos" class="btn btn-primary">
+                        <i class="fas fa-cash-register"></i> Ir al POS
+                    </a>
+                </div>
+            </div>
+
+            <!-- Current Cash Status -->
+            <div class="card mb-3" id="currentCashCard">
+                <div class="card-header">
+                    <h3 class="card-title">Estado Actual de la Caja</h3>
+                </div>
+                <div class="card-body" id="currentCashStatus">
+                    <p>Cargando...</p>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-bar">
+                <div class="filter-group">
+                    <label for="filterStartDate">Desde:</label>
+                    <input type="date" id="filterStartDate" class="form-control" onchange="loadHistory()">
+                </div>
+                <div class="filter-group">
+                    <label for="filterEndDate">Hasta:</label>
+                    <input type="date" id="filterEndDate" class="form-control" onchange="loadHistory()">
+                </div>
+            </div>
+
+            <!-- History -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Historial de Cajas</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Referencia</th>
+                                    <th>Dinero Inicial</th>
+                                    <th>Ventas</th>
+                                    <th>Gastos</th>
+                                    <th>Dinero Final</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTable">
+                                <tr><td colspan="8" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="historyPagination"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="cashDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Detalle de Caja</h3>
+                <button class="modal-close" onclick="closeCashDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="cashDetailContent"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCashDetailModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        let cashRegisters = [];
+        let currentPage = 1;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+            
+            loadCurrentStatus();
+            loadHistory();
+        });
+
+        async function loadCurrentStatus() {
+            try {
+                const result = await Utils.fetch('/api/cash-register/status');
+                const container = document.getElementById('currentCashStatus');
+                
+                if (!result.isOpen) {
+                    container.innerHTML = `
+                        <div class="d-flex justify-between align-center flex-wrap gap-2">
+                            <div>
+                                <span class="badge badge-warning">Caja Cerrada</span>
+                                <p class="mt-1 text-muted">No hay una caja abierta actualmente.</p>
+                            </div>
+                            <a href="/pos" class="btn btn-primary">
+                                <i class="fas fa-door-open"></i> Abrir Caja en POS
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    const reg = result.register;
+                    const cashColorClass = reg.currentAmount >= 0 ? 'text-success' : 'text-danger';
+                    container.innerHTML = `
+                        <div class="d-flex justify-between align-center flex-wrap gap-2">
+                            <div>
+                                <span class="badge badge-success">Caja Abierta</span>
+                                <div class="mt-1">
+                                    <p><strong>Fecha:</strong> ${Utils.formatDate(reg.date)}</p>
+                                    <p><strong>Dinero inicial:</strong> ${Utils.formatCurrency(reg.initialAmount)}</p>
+                                    <p><strong>Ventas:</strong> <span class="text-success">${Utils.formatCurrency(reg.totalSales)}</span> (${reg.salesCount} ventas)</p>
+                                    <p><strong>Gastos:</strong> <span class="text-danger">${Utils.formatCurrency(reg.totalExpenses)}</span></p>
+                                    <p style="font-size: 1.25rem;"><strong>En caja:</strong> <span class="${cashColorClass}">${Utils.formatCurrency(reg.currentAmount)}</span></p>
+                                </div>
+                            </div>
+                            <a href="/pos" class="btn btn-primary">
+                                <i class="fas fa-cash-register"></i> Ir al POS
+                            </a>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading cash status:', error);
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                Utils.showLoading();
+                const startDate = document.getElementById('filterStartDate').value;
+                const endDate = document.getElementById('filterEndDate').value;
+                
+                const result = await Utils.fetch(`/api/cash-register?startDate=${startDate}&endDate=${endDate}`);
+                cashRegisters = result.registers.reverse(); // Últimos primero
+                currentPage = 1;
+                renderHistory();
+            } catch (error) {
+                Utils.showToast('Error al cargar el historial', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function renderHistory() {
+            const table = document.getElementById('historyTable');
+            
+            if (cashRegisters.length === 0) {
+                table.innerHTML = '<tr><td colspan="8" class="text-center"><div class="empty-state"><i class="fas fa-calculator"></i><h3>No hay registros de caja</h3></div></td></tr>';
+                document.getElementById('historyPagination').innerHTML = '';
+                return;
+            }
+            
+            const { items, currentPage: page, totalPages } = Utils.paginate(cashRegisters, currentPage, 10);
+            currentPage = page;
+            
+            table.innerHTML = items.map(reg => `
+                <tr>
+                    <td>${Utils.formatDate(reg.date)}</td>
+                    <td><code>${reg.reference}</code></td>
+                    <td>${Utils.formatCurrency(reg.initialAmount)}</td>
+                    <td class="text-success">${Utils.formatCurrency(reg.totalSales)}</td>
+                    <td class="text-danger">${Utils.formatCurrency(reg.totalExpenses)}</td>
+                    <td><strong>${Utils.formatCurrency(reg.expectedAmount)}</strong></td>
+                    <td>
+                        <span class="badge ${reg.status === 'closed' ? 'badge-success' : 'badge-info'}">
+                            ${reg.status === 'closed' ? 'Cerrada' : 'Abierta'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="viewCashDetail('${reg.id}')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            Utils.renderPagination('historyPagination', currentPage, totalPages, 'goToPage');
+        }
+        
+        function goToPage(page) {
+            currentPage = page;
+            renderHistory();
+        }
+
+        function viewCashDetail(id) {
+            const reg = cashRegisters.find(r => r.id === id);
+            if (!reg) return;
+            
+            const profit = reg.totalSales - reg.totalExpenses;
+            const cashColorClass = reg.expectedAmount >= 0 ? 'text-success' : 'text-danger';
+            
+            document.getElementById('cashDetailContent').innerHTML = `
+                <p><strong>Referencia:</strong> <code>${reg.reference}</code></p>
+                <p><strong>Fecha:</strong> ${Utils.formatDate(reg.date)}</p>
+                <p><strong>Estado:</strong> <span class="badge ${reg.status === 'closed' ? 'badge-success' : 'badge-info'}">${reg.status === 'closed' ? 'Cerrada' : 'Abierta'}</span></p>
+                <hr style="border-color: var(--border-color); margin: 1rem 0;">
+                <p><strong>Hora de apertura:</strong> ${Utils.formatDateTime(reg.openedAt)}</p>
+                ${reg.closedAt ? `<p><strong>Hora de cierre:</strong> ${Utils.formatDateTime(reg.closedAt)}</p>` : ''}
+                <hr style="border-color: var(--border-color); margin: 1rem 0;">
+                <p><strong>Dinero inicial:</strong> ${Utils.formatCurrency(reg.initialAmount)}</p>
+                <p><strong>Ventas:</strong> <span class="text-success">${Utils.formatCurrency(reg.totalSales)}</span> (${reg.salesCount || 0} ventas)</p>
+                <p><strong>Gastos:</strong> <span class="text-danger">${Utils.formatCurrency(reg.totalExpenses)}</span> (${reg.expensesCount || 0} gastos)</p>
+                <p><strong>Utilidad del día:</strong> <span class="${profit >= 0 ? 'text-success' : 'text-danger'}">${Utils.formatCurrency(profit)}</span></p>
+                <hr style="border-color: var(--border-color); margin: 1rem 0;">
+                <p style="font-size: 1.25rem;"><strong>Dinero en caja:</strong> <span class="${cashColorClass}">${Utils.formatCurrency(reg.expectedAmount)}</span></p>
+            `;
+            
+            document.getElementById('cashDetailModal').classList.add('active');
+        }
+
+        function closeCashDetailModal() {
+            document.getElementById('cashDetailModal').classList.remove('active');
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

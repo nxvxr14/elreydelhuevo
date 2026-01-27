@@ -1,0 +1,14 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "Canasta Tipo A",
+      "categoryId": 1,
+      "price": 10000,
+      "stock": 6993,
+      "createdAt": "2026-01-26T21:02:45.281Z",
+      "updatedAt": "2026-01-26T21:07:16.203Z"
+    }
+  ],
+  "lastId": 1
+}
