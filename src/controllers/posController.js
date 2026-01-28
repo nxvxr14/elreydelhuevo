@@ -1,6 +1,7 @@
 const ProductService = require('../services/productService');
 const ClientService = require('../services/clientService');
 const SaleService = require('../services/saleService');
+const ExpenseService = require('../services/expenseService');
 const CashRegisterService = require('../services/cashRegisterService');
 
 /**
@@ -40,8 +41,8 @@ const POSController = {
             });
         }
         
-        // Procesar la venta
-        const result = SaleService.create(req.body);
+        // Procesar la venta con source 'pos' (afecta la caja)
+        const result = SaleService.create(req.body, 'pos');
         
         if (!result.success) {
             return res.status(400).json(result);
@@ -81,6 +82,30 @@ const POSController = {
         }
         
         const result = ClientService.create({ name: name.trim() });
+        
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        
+        return res.status(201).json(result);
+    },
+    
+    /**
+     * Crea un gasto desde el POS (afecta la caja)
+     */
+    createExpense(req, res) {
+        // Verificar que la caja esté abierta
+        const cashStatus = CashRegisterService.getStatus();
+        
+        if (!cashStatus.isOpen) {
+            return res.status(400).json({
+                success: false,
+                message: 'La caja no está abierta. Debe abrir la caja antes de registrar gastos.'
+            });
+        }
+        
+        // Crear gasto con source 'pos' (afecta la caja)
+        const result = ExpenseService.create(req.body, 'pos');
         
         if (!result.success) {
             return res.status(400).json(result);

@@ -58,11 +58,11 @@ const SaleController = {
     },
     
     /**
-     * Crea una venta manual (fuera del POS)
+     * Crea una venta manual (fuera del POS) - NO afecta la caja
      */
     createManual(req, res) {
-        // La venta manual usa el mismo servicio pero puede tener fecha personalizada
-        const result = SaleService.create(req.body);
+        // La venta manual usa source 'dashboard' - NO afecta la caja física
+        const result = SaleService.create(req.body, 'dashboard');
         
         if (!result.success) {
             return res.status(400).json(result);

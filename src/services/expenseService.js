@@ -40,8 +40,10 @@ const ExpenseService = {
     
     /**
      * Crea un nuevo gasto
+     * @param {Object} expenseData - Datos del gasto
+     * @param {string} source - Origen del gasto: 'pos' o 'dashboard'
      */
-    create(expenseData) {
+    create(expenseData, source = 'dashboard') {
         const data = db.readJSON('expenses.json');
         if (!data) {
             return { success: false, message: 'Error al acceder a la base de datos' };
@@ -70,6 +72,7 @@ const ExpenseService = {
             amount: parseFloat(expenseData.amount),
             date: expenseData.date || db.getCurrentDate(),
             note: expenseData.note ? expenseData.note.substring(0, 200) : '',
+            source: source, // 'pos' o 'dashboard'
             createdAt: db.getCurrentDateTime()
         };
         
@@ -159,11 +162,19 @@ const ExpenseService = {
     
     /**
      * Obtiene estadísticas de gastos por rango de fechas
+     * @param {string} startDate 
+     * @param {string} endDate 
+     * @param {string|null} source - Filtrar por origen: 'pos', 'dashboard' o null para todos
      */
-    getStats(startDate, endDate) {
-        const expenses = this.getAll().filter(e => {
+    getStats(startDate, endDate, source = null) {
+        let expenses = this.getAll().filter(e => {
             return e.date >= startDate && e.date <= endDate;
         });
+        
+        // Filtrar por origen si se especifica
+        if (source) {
+            expenses = expenses.filter(e => e.source === source);
+        }
         
         const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
         const expensesCount = expenses.length;

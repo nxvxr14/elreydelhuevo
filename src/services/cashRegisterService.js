@@ -117,9 +117,9 @@ const CashRegisterService = {
         const register = data.currentRegister;
         const today = register.date;
         
-        // Calcular totales del día
-        const salesStats = SaleService.getStats(today, today);
-        const expensesStats = ExpenseService.getStats(today, today);
+        // Calcular totales del día - SOLO ventas y gastos del POS (source: 'pos')
+        const salesStats = SaleService.getStats(today, today, 'pos');
+        const expensesStats = ExpenseService.getStats(today, today, 'pos');
         
         const totalSales = salesStats.totalSales;
         const totalExpenses = expensesStats.totalExpenses;
@@ -161,9 +161,9 @@ const CashRegisterService = {
         
         const today = current.date;
         
-        // Calcular totales actuales
-        const salesStats = SaleService.getStats(today, today);
-        const expensesStats = ExpenseService.getStats(today, today);
+        // Calcular totales actuales - SOLO ventas y gastos del POS (source: 'pos')
+        const salesStats = SaleService.getStats(today, today, 'pos');
+        const expensesStats = ExpenseService.getStats(today, today, 'pos');
         
         const currentAmount = current.initialAmount + salesStats.totalSales - expensesStats.totalExpenses;
         

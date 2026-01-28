@@ -604,7 +604,8 @@ async function saveQuickExpense() {
             note: note
         };
         
-        await Utils.fetch('/api/expenses', {
+        // Usar endpoint del POS para que el gasto afecte la caja
+        await Utils.fetch('/api/pos/expense', {
             method: 'POST',
             body: JSON.stringify(data)
         });

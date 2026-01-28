@@ -4,6 +4,7 @@ const POSController = require('../controllers/posController');
 
 router.get('/data', POSController.getData);
 router.post('/sale', POSController.processSale);
+router.post('/expense', POSController.createExpense);
 router.get('/check-stock', POSController.checkStock);
 router.post('/quick-client', POSController.createQuickClient);
 

@@ -2,12 +2,12 @@
   "products": [
     {
       "id": 1,
-      "name": "Canasta Tipo A",
+      "name": "Tipo AAA",
       "categoryId": 1,
-      "price": 10000,
-      "stock": 6993,
-      "createdAt": "2026-01-26T21:02:45.281Z",
-      "updatedAt": "2026-01-26T21:07:16.203Z"
+      "price": 10500,
+      "stock": 13993,
+      "createdAt": "2026-01-27T17:22:47.167Z",
+      "updatedAt": "2026-01-27T17:25:31.170Z"
     }
   ],
   "lastId": 1

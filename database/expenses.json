@@ -1,13 +1,24 @@
 {
   "expenses": [
     {
-      "id": "G17694616822206940",
-      "reference": "G17694616822206940",
-      "concept": "Prestamo trabajador",
+      "id": "G17695347469432803",
+      "reference": "G17695347469432803",
+      "concept": "Sueldo diario",
+      "amount": 30000,
+      "date": "2026-01-27",
+      "note": "Pedro",
+      "source": "pos",
+      "createdAt": "2026-01-27T17:25:46.943Z"
+    },
+    {
+      "id": "G17695348153424960",
+      "reference": "G17695348153424960",
+      "concept": "Sueldo",
       "amount": 50000,
-      "date": "2026-01-26",
-      "note": "",
-      "createdAt": "2026-01-26T21:08:02.220Z"
+      "date": "2026-01-27",
+      "note": "martin",
+      "source": "dashboard",
+      "createdAt": "2026-01-27T17:26:55.342Z"
     }
   ]
 }

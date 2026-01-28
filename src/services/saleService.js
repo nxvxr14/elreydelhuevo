@@ -97,8 +97,10 @@ const SaleService = {
     
     /**
      * Crea una nueva venta
+     * @param {Object} saleData - Datos de la venta
+     * @param {string} source - Origen de la venta: 'pos' o 'dashboard'
      */
-    create(saleData) {
+    create(saleData, source = 'pos') {
         const data = db.readJSON('sales.json');
         if (!data) {
             return { success: false, message: 'Error al acceder a la base de datos' };
@@ -151,6 +153,7 @@ const SaleService = {
             change: Math.round(parseFloat(saleData.received || total) - total),
             note: saleData.note ? saleData.note.substring(0, 200) : '',
             date: saleData.date || db.getCurrentDate(),
+            source: source, // 'pos' o 'dashboard'
             createdAt: db.getCurrentDateTime()
         };
         
@@ -276,11 +279,19 @@ const SaleService = {
     
     /**
      * Obtiene estadísticas de ventas por rango de fechas
+     * @param {string} startDate 
+     * @param {string} endDate 
+     * @param {string|null} source - Filtrar por origen: 'pos', 'dashboard' o null para todos
      */
-    getStats(startDate, endDate) {
-        const sales = this.getAll().filter(s => {
+    getStats(startDate, endDate, source = null) {
+        let sales = this.getAll().filter(s => {
             return s.date >= startDate && s.date <= endDate;
         });
+        
+        // Filtrar por origen si se especifica
+        if (source) {
+            sales = sales.filter(s => s.source === source);
+        }
         
         const totalSales = sales.reduce((sum, s) => sum + s.total, 0);
         const salesCount = sales.length;
