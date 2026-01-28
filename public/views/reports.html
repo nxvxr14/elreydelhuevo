@@ -49,14 +49,17 @@
             <div class="card mb-3">
                 <div class="card-body">
                     <div class="d-flex gap-2 flex-wrap">
-                        <button class="btn btn-primary active" id="btnDailyReport" onclick="selectReportType('daily')">
-                            <i class="fas fa-calendar-day"></i> Reporte Diario
+                        <button class="btn btn-primary" id="btnDailyReport" onclick="selectReportType('daily')">
+                            <i class="fas fa-calendar-day"></i> Diario
                         </button>
                         <button class="btn btn-secondary" id="btnSalesReport" onclick="selectReportType('sales')">
                             <i class="fas fa-shopping-cart"></i> Ventas
                         </button>
                         <button class="btn btn-secondary" id="btnExpensesReport" onclick="selectReportType('expenses')">
                             <i class="fas fa-money-bill-wave"></i> Gastos
+                        </button>
+                        <button class="btn btn-secondary" id="btnCreditsReport" onclick="selectReportType('credits')">
+                            <i class="fas fa-credit-card"></i> Créditos
                         </button>
                         <button class="btn btn-secondary" id="btnInventoryReport" onclick="selectReportType('inventory')">
                             <i class="fas fa-warehouse"></i> Inventario
@@ -70,9 +73,27 @@
 
             <!-- Filters -->
             <div class="filters-bar">
+                <div class="filter-group" id="filterDateTypeGroup" style="display: none;">
+                    <label for="filterDateType">Tipo:</label>
+                    <select id="filterDateType" class="form-control" onchange="toggleDateFilters()">
+                        <option value="month">Por Mes</option>
+                        <option value="range">Rango de Fechas</option>
+                    </select>
+                </div>
                 <div class="filter-group" id="filterDateGroup">
                     <label for="filterDate">Fecha:</label>
                     <input type="date" id="filterDate" class="form-control" onchange="loadReport()">
+                </div>
+                <div class="filter-group" id="filterMonthYearGroup" style="display: none;">
+                    <label for="filterMonth">Mes:</label>
+                    <select id="filterMonth" class="form-control" onchange="onMonthChange()">
+                        <!-- Months loaded dynamically -->
+                    </select>
+                </div>
+                <div class="filter-group" id="filterYearGroup" style="display: none;">
+                    <label for="filterYear">Año:</label>
+                    <select id="filterYear" class="form-control" onchange="onYearChange()">
+                    </select>
                 </div>
                 <div class="filter-group" id="filterStartDateGroup" style="display: none;">
                     <label for="filterStartDate">Desde:</label>
@@ -94,6 +115,13 @@
                         <option value="">Todos</option>
                     </select>
                 </div>
+                <div class="filter-group" id="filterCreditStatusGroup" style="display: none;">
+                    <label for="filterCreditStatus">Estado:</label>
+                    <select id="filterCreditStatus" class="form-control" onchange="loadReport()">
+                        <option value="pending">Solo Pendientes</option>
+                        <option value="all">Todos</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Report Content -->
@@ -109,18 +137,136 @@
         let currentReportType = 'daily';
         let salesChart = null;
         let expensesChart = null;
+        let availablePeriods = null;
+        
+        const MONTH_NAMES = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ];
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const today = new Date();
-            document.getElementById('filterDate').value = today.toISOString().split('T')[0];
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Set current date using Bogota timezone
+            const today = Utils.getCurrentDate();
+            document.getElementById('filterDate').value = today;
             
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
-            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+            // Set first and last day of current month
+            document.getElementById('filterStartDate').value = Utils.getFirstDayOfMonth();
+            document.getElementById('filterEndDate').value = today;
+            
+            // Initialize month/year selectors from available periods
+            await initMonthYearSelectors();
             
             loadFilters();
             loadReport();
         });
+        
+        async function initMonthYearSelectors() {
+            const now = new Date();
+            const bogotaDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+            const currentMonth = bogotaDate.getMonth() + 1;
+            const currentYear = bogotaDate.getFullYear();
+            
+            try {
+                // Load available periods from server
+                const result = await Utils.fetch('/api/dashboard/periods');
+                availablePeriods = result;
+                
+                // Populate years (only years with data)
+                const yearSelect = document.getElementById('filterYear');
+                yearSelect.innerHTML = '';
+                result.years.forEach(year => {
+                    yearSelect.innerHTML += `<option value="${year}" ${parseInt(year) === currentYear ? 'selected' : ''}>${year}</option>`;
+                });
+                
+                // Populate months for selected year
+                updateMonthOptions();
+                
+            } catch (error) {
+                console.error('Error loading periods:', error);
+                // Fallback: show only current month/year
+                const yearSelect = document.getElementById('filterYear');
+                yearSelect.innerHTML = `<option value="${currentYear}" selected>${currentYear}</option>`;
+                
+                const monthSelect = document.getElementById('filterMonth');
+                monthSelect.innerHTML = `<option value="${currentMonth}" selected>${MONTH_NAMES[currentMonth - 1]}</option>`;
+            }
+        }
+        
+        function updateMonthOptions() {
+            const monthSelect = document.getElementById('filterMonth');
+            const yearSelect = document.getElementById('filterYear');
+            const selectedYear = yearSelect.value;
+            
+            const now = new Date();
+            const bogotaDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+            const currentMonth = bogotaDate.getMonth() + 1;
+            const currentYear = bogotaDate.getFullYear();
+            
+            monthSelect.innerHTML = '';
+            
+            if (availablePeriods && availablePeriods.monthsByYear[selectedYear]) {
+                const months = availablePeriods.monthsByYear[selectedYear];
+                months.forEach(month => {
+                    const option = document.createElement('option');
+                    option.value = month;
+                    option.textContent = MONTH_NAMES[month - 1];
+                    // Select current month if in current year, otherwise first available month
+                    if (parseInt(selectedYear) === currentYear && month === currentMonth) {
+                        option.selected = true;
+                    } else if (months.indexOf(month) === 0) {
+                        option.selected = true;
+                    }
+                    monthSelect.appendChild(option);
+                });
+            } else {
+                // Fallback
+                const option = document.createElement('option');
+                option.value = currentMonth;
+                option.textContent = MONTH_NAMES[currentMonth - 1];
+                option.selected = true;
+                monthSelect.appendChild(option);
+            }
+        }
+        
+        function onYearChange() {
+            // Update month options when year changes
+            updateMonthOptions();
+            updateDateRange();
+            loadReport();
+        }
+        
+        function onMonthChange() {
+            updateDateRange();
+            loadReport();
+        }
+        
+        function updateDateRange() {
+            const month = parseInt(document.getElementById('filterMonth').value);
+            const year = parseInt(document.getElementById('filterYear').value);
+            
+            // Calculate start and end of month
+            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            const lastDay = new Date(year, month, 0).getDate();
+            const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            
+            document.getElementById('filterStartDate').value = startDate;
+            document.getElementById('filterEndDate').value = endDate;
+        }
+        
+        function toggleDateFilters() {
+            const dateType = document.getElementById('filterDateType').value;
+            const isRange = dateType === 'range';
+            
+            document.getElementById('filterMonthYearGroup').style.display = isRange ? 'none' : 'flex';
+            document.getElementById('filterYearGroup').style.display = isRange ? 'none' : 'flex';
+            document.getElementById('filterStartDateGroup').style.display = isRange ? 'flex' : 'none';
+            document.getElementById('filterEndDateGroup').style.display = isRange ? 'flex' : 'none';
+            
+            if (!isRange) {
+                updateDateRange();
+            }
+            loadReport();
+        }
 
         async function loadFilters() {
             try {
@@ -146,25 +292,47 @@
         function selectReportType(type) {
             currentReportType = type;
             
-            // Update buttons
-            document.querySelectorAll('.page-actions + .card .btn').forEach(btn => {
+            // Reset all buttons to secondary
+            const allButtons = document.querySelectorAll('#btnDailyReport, #btnSalesReport, #btnExpensesReport, #btnCreditsReport, #btnInventoryReport, #btnCashReport');
+            allButtons.forEach(btn => {
                 btn.classList.remove('btn-primary');
                 btn.classList.add('btn-secondary');
             });
-            document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}Report`).classList.remove('btn-secondary');
-            document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}Report`).classList.add('btn-primary');
             
-            // Show/hide filters
+            // Set active button to primary
+            const activeBtn = document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}Report`);
+            if (activeBtn) {
+                activeBtn.classList.remove('btn-secondary');
+                activeBtn.classList.add('btn-primary');
+            }
+            
+            // Show/hide filters based on report type
             const showDate = type === 'daily';
-            const showRange = type !== 'daily';
-            const showClient = type === 'sales';
+            const showRange = type === 'sales' || type === 'expenses' || type === 'inventory' || type === 'cash' || type === 'credits';
+            const showClient = type === 'sales' || type === 'credits';
             const showProduct = type === 'sales' || type === 'inventory';
+            const showCreditStatus = type === 'credits';
             
             document.getElementById('filterDateGroup').style.display = showDate ? 'flex' : 'none';
-            document.getElementById('filterStartDateGroup').style.display = showRange ? 'flex' : 'none';
-            document.getElementById('filterEndDateGroup').style.display = showRange ? 'flex' : 'none';
+            document.getElementById('filterDateTypeGroup').style.display = showRange ? 'flex' : 'none';
+            
+            if (showRange) {
+                const dateType = document.getElementById('filterDateType').value;
+                const isRange = dateType === 'range';
+                document.getElementById('filterMonthYearGroup').style.display = isRange ? 'none' : 'flex';
+                document.getElementById('filterYearGroup').style.display = isRange ? 'none' : 'flex';
+                document.getElementById('filterStartDateGroup').style.display = isRange ? 'flex' : 'none';
+                document.getElementById('filterEndDateGroup').style.display = isRange ? 'flex' : 'none';
+            } else {
+                document.getElementById('filterMonthYearGroup').style.display = 'none';
+                document.getElementById('filterYearGroup').style.display = 'none';
+                document.getElementById('filterStartDateGroup').style.display = 'none';
+                document.getElementById('filterEndDateGroup').style.display = 'none';
+            }
+            
             document.getElementById('filterClientGroup').style.display = showClient ? 'flex' : 'none';
             document.getElementById('filterProductGroup').style.display = showProduct ? 'flex' : 'none';
+            document.getElementById('filterCreditStatusGroup').style.display = showCreditStatus ? 'flex' : 'none';
             
             loadReport();
         }
@@ -182,6 +350,9 @@
                         break;
                     case 'expenses':
                         await loadExpensesReport();
+                        break;
+                    case 'credits':
+                        await loadCreditsReport();
                         break;
                     case 'inventory':
                         await loadInventoryReport();
@@ -541,6 +712,117 @@
                                                 <td>${Utils.escapeHtml(e.productName)}</td>
                                                 <td><span class="badge badge-success">+${e.quantity}</span></td>
                                                 <td>${Utils.escapeHtml(e.origin)}</td>
+                                            </tr>
+                                        `).join('')
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadCreditsReport() {
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+            const clientId = document.getElementById('filterClient').value;
+            const creditStatus = document.getElementById('filterCreditStatus').value;
+            
+            // Get all credit sales
+            const result = await Utils.fetch('/api/sales?startDate=' + startDate + '&endDate=' + endDate);
+            let allSales = result.sales || [];
+            
+            // Filter by payment method = credit
+            let creditSales = allSales.filter(s => s.paymentMethod === 'credit');
+            
+            // Filter by status
+            if (creditStatus === 'pending') {
+                creditSales = creditSales.filter(s => s.status === 'pending');
+            }
+            
+            // Filter by client
+            if (clientId) {
+                creditSales = creditSales.filter(s => s.clientId === parseInt(clientId));
+            }
+            
+            // Sort by date descending
+            creditSales.sort((a, b) => b.date.localeCompare(a.date));
+            
+            // Calculate totals
+            const totalPending = creditSales.reduce((sum, s) => sum + (s.pendingAmount || 0), 0);
+            const totalSalesValue = creditSales.reduce((sum, s) => sum + s.total, 0);
+            const totalPaid = creditSales.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
+            const pendingCount = creditSales.filter(s => s.status === 'pending').length;
+            
+            const content = document.getElementById('reportContent');
+            content.innerHTML = `
+                <div class="stats-grid mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15);"><i class="fas fa-credit-card" style="color: var(--warning);"></i></div>
+                        <div class="stat-info">
+                            <h3 class="text-warning">${Utils.formatCurrency(totalPending)}</h3>
+                            <p>Total Por Cobrar</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon info"><i class="fas fa-file-invoice-dollar"></i></div>
+                        <div class="stat-info">
+                            <h3>${creditSales.length}</h3>
+                            <p>Créditos (${pendingCount} pendientes)</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon sales"><i class="fas fa-hand-holding-usd"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(totalPaid)}</h3>
+                            <p>Total Abonado</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon profit"><i class="fas fa-coins"></i></div>
+                        <div class="stat-info">
+                            <h3>${Utils.formatCurrency(totalSalesValue)}</h3>
+                            <p>Valor Total Créditos</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Créditos ${creditStatus === 'pending' ? 'Pendientes de Cobro' : '(Todos)'}</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Referencia</th>
+                                        <th>Cliente</th>
+                                        <th>Total Venta</th>
+                                        <th>Abonado</th>
+                                        <th>Pendiente</th>
+                                        <th>Estado</th>
+                                        <th>Acc.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${creditSales.length === 0 ? '<tr><td colspan="8" class="text-center">No hay créditos en este período</td></tr>' :
+                                        creditSales.map(s => `
+                                            <tr>
+                                                <td>${Utils.formatDate(s.date)}</td>
+                                                <td><code>${s.reference.substring(0, 8)}...</code></td>
+                                                <td>${Utils.escapeHtml(s.clientName)}</td>
+                                                <td>${Utils.formatCurrency(s.total)}</td>
+                                                <td class="text-success">${Utils.formatCurrency(s.paidAmount || 0)}</td>
+                                                <td><strong class="${s.pendingAmount > 0 ? 'text-warning' : 'text-success'}">${Utils.formatCurrency(s.pendingAmount || 0)}</strong></td>
+                                                <td>${s.status === 'pending' ? '<span class="badge badge-warning">Pendiente</span>' : '<span class="badge badge-success">Pagado</span>'}</td>
+                                                <td>
+                                                    <a href="/sales" class="btn btn-sm btn-info" title="Ver en ventas">
+                                                        <i class="fas fa-external-link-alt"></i>
+                                                    </a>
+                                                </td>
                                             </tr>
                                         `).join('')
                                     }

@@ -139,11 +139,9 @@
         let currentPage = 1;
 
         document.addEventListener('DOMContentLoaded', () => {
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
-            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
-            document.getElementById('expenseDate').value = today.toISOString().split('T')[0];
+            document.getElementById('filterStartDate').value = Utils.getFirstDayOfMonth();
+            document.getElementById('filterEndDate').value = Utils.getCurrentDate();
+            document.getElementById('expenseDate').value = Utils.getCurrentDate();
             
             loadExpenses();
         });
@@ -202,7 +200,7 @@
         function showExpenseModal(expense = null) {
             document.getElementById('expenseForm').reset();
             document.getElementById('expenseId').value = '';
-            document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('expenseDate').value = Utils.getCurrentDate();
             
             const amountInput = document.getElementById('expenseAmount');
             Utils.setupMoneyInput(amountInput);

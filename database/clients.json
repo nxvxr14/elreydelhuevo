@@ -2,12 +2,12 @@
   "clients": [
     {
       "id": 1,
-      "name": "Consumidor final",
+      "name": "Consumidor Final",
       "phone": "",
       "email": "",
       "address": "",
-      "createdAt": "2026-01-27T17:22:55.919Z",
-      "updatedAt": "2026-01-27T17:22:55.919Z"
+      "createdAt": "2026-01-27T23:24:59-05:00",
+      "updatedAt": "2026-01-27T23:24:59-05:00"
     }
   ],
   "lastId": 1

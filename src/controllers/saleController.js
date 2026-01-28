@@ -118,6 +118,41 @@ const SaleController = {
             success: true,
             stats
         });
+    },
+    
+    /**
+     * Obtiene ventas a crédito pendientes
+     */
+    getCreditSales(req, res) {
+        const sales = SaleService.getCreditSales();
+        
+        return res.json({
+            success: true,
+            sales
+        });
+    },
+    
+    /**
+     * Agrega un abono a una venta a crédito
+     */
+    addPayment(req, res) {
+        const { id } = req.params;
+        const { amount, note } = req.body;
+        
+        if (!amount) {
+            return res.status(400).json({
+                success: false,
+                message: 'El monto del abono es requerido'
+            });
+        }
+        
+        const result = SaleService.addPayment(id, amount, note);
+        
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        
+        return res.json(result);
     }
 };
 

@@ -143,6 +143,31 @@ const SaleService = {
         // Generar referencia
         const reference = db.generateReference('V');
         
+        // Payment method: 'cash', 'transfer', 'credit'
+        const paymentMethod = saleData.paymentMethod || 'cash';
+        
+        // For credit sales, calculate paid and pending amounts
+        let paidAmount = Math.round(total);
+        let pendingAmount = 0;
+        let status = 'paid';
+        let payments = [];
+        
+        if (paymentMethod === 'credit') {
+            // Initial payment for credit (can be 0)
+            const initialPayment = Math.round(parseFloat(saleData.initialPayment || 0));
+            paidAmount = initialPayment;
+            pendingAmount = Math.round(total) - paidAmount;
+            status = pendingAmount > 0 ? 'pending' : 'paid';
+            
+            if (initialPayment > 0) {
+                payments.push({
+                    date: saleData.date || db.getCurrentDate(),
+                    amount: initialPayment,
+                    note: 'Abono inicial'
+                });
+            }
+        }
+        
         const newSale = {
             id: reference,
             reference,
@@ -154,6 +179,11 @@ const SaleService = {
             note: saleData.note ? saleData.note.substring(0, 200) : '',
             date: saleData.date || db.getCurrentDate(),
             source: source, // 'pos' o 'dashboard'
+            paymentMethod: paymentMethod, // 'cash', 'transfer', 'credit'
+            paidAmount: paidAmount,
+            pendingAmount: pendingAmount,
+            status: status, // 'paid' o 'pending'
+            payments: payments,
             createdAt: db.getCurrentDateTime()
         };
         
@@ -278,7 +308,149 @@ const SaleService = {
     },
     
     /**
+     * Agrega un abono a una venta a crédito
+     * @param {string} saleId - ID de la venta
+     * @param {number} amount - Monto del abono
+     * @param {string} note - Nota del abono
+     */
+    addPayment(saleId, amount, note = '') {
+        const data = db.readJSON('sales.json');
+        if (!data) {
+            return { success: false, message: 'Error al acceder a la base de datos' };
+        }
+        
+        const index = data.sales.findIndex(s => s.id === saleId);
+        if (index === -1) {
+            return { success: false, message: 'Venta no encontrada' };
+        }
+        
+        const sale = data.sales[index];
+        
+        // Verify it's a credit sale
+        if (sale.paymentMethod !== 'credit') {
+            return { success: false, message: 'Solo se pueden abonar ventas a crédito' };
+        }
+        
+        // Verify sale is not fully paid
+        if (sale.status === 'paid') {
+            return { success: false, message: 'Esta venta ya está completamente pagada' };
+        }
+        
+        const paymentAmount = Math.round(parseFloat(amount));
+        
+        if (paymentAmount <= 0) {
+            return { success: false, message: 'El monto del abono debe ser mayor a 0' };
+        }
+        
+        if (paymentAmount > sale.pendingAmount) {
+            return { success: false, message: `El abono excede el saldo pendiente (${sale.pendingAmount})` };
+        }
+        
+        // Add payment
+        const payment = {
+            date: db.getCurrentDate(),
+            amount: paymentAmount,
+            note: note ? note.substring(0, 200) : ''
+        };
+        
+        // Initialize payments array if not exists (for backward compatibility)
+        if (!sale.payments) {
+            sale.payments = [];
+        }
+        
+        sale.payments.push(payment);
+        sale.paidAmount = (sale.paidAmount || 0) + paymentAmount;
+        sale.pendingAmount = sale.total - sale.paidAmount;
+        
+        // Update status
+        if (sale.pendingAmount <= 0) {
+            sale.status = 'paid';
+            sale.pendingAmount = 0;
+        }
+        
+        sale.updatedAt = db.getCurrentDateTime();
+        
+        data.sales[index] = sale;
+        
+        if (!db.writeJSON('sales.json', data)) {
+            return { success: false, message: 'Error al guardar el abono' };
+        }
+        
+        return { success: true, sale: sale, payment: payment };
+    },
+    
+    /**
+     * Obtiene ventas a crédito pendientes
+     */
+    getCreditSales() {
+        const sales = this.getAllWithDetails();
+        return sales.filter(s => s.paymentMethod === 'credit' && s.status === 'pending');
+    },
+    
+    /**
+     * Obtiene resumen de créditos pendientes con alertas
+     * @returns {Object} Resumen de créditos con alertas
+     */
+    getCreditsSummary() {
+        const creditSales = this.getCreditSales();
+        const today = db.getCurrentDate();
+        
+        // Calculate days since sale for each credit
+        const creditsWithAge = creditSales.map(sale => {
+            const saleDate = new Date(sale.date + 'T00:00:00');
+            const todayDate = new Date(today + 'T00:00:00');
+            const daysSinceSale = Math.floor((todayDate - saleDate) / (1000 * 60 * 60 * 24));
+            
+            // Determine urgency level
+            let urgency = 'normal'; // green
+            if (daysSinceSale >= 30) {
+                urgency = 'critical'; // red - more than 30 days
+            } else if (daysSinceSale >= 15) {
+                urgency = 'warning'; // yellow - 15-29 days
+            } else if (daysSinceSale >= 7) {
+                urgency = 'attention'; // orange - 7-14 days
+            }
+            
+            return {
+                ...sale,
+                daysSinceSale,
+                urgency
+            };
+        });
+        
+        // Sort by days since sale (oldest first)
+        creditsWithAge.sort((a, b) => b.daysSinceSale - a.daysSinceSale);
+        
+        // Calculate totals
+        const totalPending = creditsWithAge.reduce((sum, s) => sum + (s.pendingAmount || 0), 0);
+        const totalCreditsValue = creditsWithAge.reduce((sum, s) => sum + s.total, 0);
+        const totalPaid = creditsWithAge.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
+        
+        // Count by urgency
+        const criticalCount = creditsWithAge.filter(s => s.urgency === 'critical').length;
+        const warningCount = creditsWithAge.filter(s => s.urgency === 'warning').length;
+        const attentionCount = creditsWithAge.filter(s => s.urgency === 'attention').length;
+        const normalCount = creditsWithAge.filter(s => s.urgency === 'normal').length;
+        
+        return {
+            credits: creditsWithAge,
+            totalCount: creditsWithAge.length,
+            totalPending: Math.round(totalPending),
+            totalCreditsValue: Math.round(totalCreditsValue),
+            totalPaid: Math.round(totalPaid),
+            urgencyCounts: {
+                critical: criticalCount,  // > 30 days
+                warning: warningCount,    // 15-29 days
+                attention: attentionCount, // 7-14 days
+                normal: normalCount       // < 7 days
+            },
+            hasAlerts: criticalCount > 0 || warningCount > 0
+        };
+    },
+    
+    /**
      * Obtiene estadísticas de ventas por rango de fechas
+     * Calcula ingresos correctamente: para crédito solo suma los abonos
      * @param {string} startDate 
      * @param {string} endDate 
      * @param {string|null} source - Filtrar por origen: 'pos', 'dashboard' o null para todos
@@ -293,11 +465,62 @@ const SaleService = {
             sales = sales.filter(s => s.source === source);
         }
         
+        // Calculate total income correctly:
+        // - Cash/Transfer: full amount on sale date
+        // - Credit: only paid amounts (from payments array) that fall within date range
+        let totalIncome = 0;
+        let cashTotal = 0;
+        let transferTotal = 0;
+        let creditPaidTotal = 0;
+        
+        sales.forEach(sale => {
+            const method = sale.paymentMethod || 'cash';
+            
+            if (method === 'cash') {
+                totalIncome += sale.total;
+                cashTotal += sale.total;
+            } else if (method === 'transfer') {
+                totalIncome += sale.total;
+                transferTotal += sale.total;
+            } else if (method === 'credit') {
+                // For credit sales, sum payments made within the date range
+                const payments = sale.payments || [];
+                payments.forEach(payment => {
+                    if (payment.date >= startDate && payment.date <= endDate) {
+                        totalIncome += payment.amount;
+                        creditPaidTotal += payment.amount;
+                    }
+                });
+            }
+        });
+        
+        // Also check for payments on credit sales from OUTSIDE the date range
+        // that have payments WITHIN the date range
+        const allSales = this.getAll();
+        allSales.forEach(sale => {
+            // Skip sales already processed (within date range)
+            if (sale.date >= startDate && sale.date <= endDate) return;
+            
+            // Only check credit sales outside the range
+            if (sale.paymentMethod === 'credit' && sale.payments) {
+                sale.payments.forEach(payment => {
+                    if (payment.date >= startDate && payment.date <= endDate) {
+                        totalIncome += payment.amount;
+                        creditPaidTotal += payment.amount;
+                    }
+                });
+            }
+        });
+        
         const totalSales = sales.reduce((sum, s) => sum + s.total, 0);
         const salesCount = sales.length;
         
         return {
             totalSales: Math.round(totalSales),
+            totalIncome: Math.round(totalIncome),
+            cashTotal: Math.round(cashTotal),
+            transferTotal: Math.round(transferTotal),
+            creditPaidTotal: Math.round(creditPaidTotal),
             salesCount,
             averageSale: salesCount > 0 ? Math.round(totalSales / salesCount) : 0
         };

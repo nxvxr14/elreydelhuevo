@@ -150,11 +150,9 @@
         let currentPage = 1;
 
         document.addEventListener('DOMContentLoaded', () => {
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
-            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
-            document.getElementById('entryDate').value = today.toISOString().split('T')[0];
+            document.getElementById('filterStartDate').value = Utils.getFirstDayOfMonth();
+            document.getElementById('filterEndDate').value = Utils.getCurrentDate();
+            document.getElementById('entryDate').value = Utils.getCurrentDate();
             
             loadProducts();
             loadEntries();
@@ -234,7 +232,7 @@
 
         function showEntryModal() {
             document.getElementById('entryForm').reset();
-            document.getElementById('entryDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('entryDate').value = Utils.getCurrentDate();
             
             const quantityInput = document.getElementById('entryQuantity');
             Utils.setupMoneyInput(quantityInput);

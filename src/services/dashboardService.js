@@ -187,11 +187,15 @@ const DashboardService = {
         const lowStockProducts = productsData ? 
             productsData.products.filter(p => p.stock < 10) : [];
         
+        // Resumen de créditos pendientes
+        const creditsSummary = SaleService.getCreditsSummary();
+        
         return {
             currentMonth: monthMetrics,
             cashStatus,
             lowStockProducts,
-            lowStockCount: lowStockProducts.length
+            lowStockCount: lowStockProducts.length,
+            creditsSummary
         };
     }
 };

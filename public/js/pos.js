@@ -189,6 +189,27 @@ function updateQuantity(productId, delta) {
     renderCart();
 }
 
+function updateQuantityDirect(productId, value) {
+    const item = cart.find(i => i.productId === productId);
+    if (!item) return;
+    
+    const newQty = Utils.parseNumber(value);
+    
+    if (newQty <= 0 || isNaN(newQty)) {
+        removeFromCart(productId);
+        return;
+    }
+    
+    if (newQty > item.maxStock) {
+        Utils.showToast(`Stock máximo disponible: ${Utils.formatNumber(item.maxStock)}`, 'warning');
+        item.quantity = item.maxStock;
+    } else {
+        item.quantity = newQty;
+    }
+    
+    renderCart();
+}
+
 function updateItemPrice(productId, price) {
     const item = cart.find(i => i.productId === productId);
     if (!item) return;
@@ -243,7 +264,10 @@ function renderCart() {
                     <span>Cantidad:</span>
                     <div class="cart-qty-control">
                         <button onclick="updateQuantity(${item.productId}, -1)">-</button>
-                        <span class="qty-value">${Utils.formatNumber(item.quantity)}</span>
+                        <input type="text" class="qty-input" 
+                               value="${Utils.formatNumber(item.quantity)}" 
+                               onchange="updateQuantityDirect(${item.productId}, this.value)"
+                               onclick="this.select()">
                         <button onclick="updateQuantity(${item.productId}, 1)">+</button>
                     </div>
                 </div>

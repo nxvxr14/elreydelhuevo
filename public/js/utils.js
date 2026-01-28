@@ -16,10 +16,11 @@ const Utils = {
     formatDate(dateString) {
         if (!dateString) return '';
         const date = new Date(dateString + 'T00:00:00');
-        return date.toLocaleDateString('es-GT', {
+        return date.toLocaleDateString('es-CO', {
             year: 'numeric',
             month: 'short',
-            day: 'numeric'
+            day: 'numeric',
+            timeZone: 'America/Bogota'
         });
     },
     
@@ -29,36 +30,39 @@ const Utils = {
     formatDateTime(dateTimeString) {
         if (!dateTimeString) return '';
         const date = new Date(dateTimeString);
-        return date.toLocaleString('es-GT', {
+        return date.toLocaleString('es-CO', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            timeZone: 'America/Bogota'
         });
     },
     
     /**
-     * Obtiene la fecha actual en formato YYYY-MM-DD
+     * Obtiene la fecha actual en formato YYYY-MM-DD (zona horaria Bogotá)
      */
     getCurrentDate() {
-        return new Date().toISOString().split('T')[0];
+        return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     },
     
     /**
-     * Obtiene el primer día del mes actual
+     * Obtiene el primer día del mes actual (zona horaria Bogotá)
      */
     getFirstDayOfMonth() {
         const now = new Date();
-        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const bogotaDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+        return new Date(bogotaDate.getFullYear(), bogotaDate.getMonth(), 1).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     },
     
     /**
-     * Obtiene el último día del mes actual
+     * Obtiene el último día del mes actual (zona horaria Bogotá)
      */
     getLastDayOfMonth() {
         const now = new Date();
-        return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        const bogotaDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+        return new Date(bogotaDate.getFullYear(), bogotaDate.getMonth() + 1, 0).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     },
     
     /**

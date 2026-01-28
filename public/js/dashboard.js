@@ -6,6 +6,7 @@ let salesChart = null;
 let expensesChart = null;
 let combinedChart = null;
 let availablePeriods = null;
+let creditsSummary = null;
 
 const MONTH_NAMES = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -113,6 +114,9 @@ async function loadDashboard() {
         // Actualizar productos con bajo stock
         updateLowStock(summaryResult.lowStockProducts);
         
+        // Actualizar créditos pendientes
+        updateCreditsAlerts(summaryResult.creditsSummary);
+        
         // Actualizar gráficos
         updateCharts(chartResult.chartData);
         
@@ -178,9 +182,6 @@ function updateCashStatus(cashStatus) {
 function updateLowStock(products) {
     const card = document.getElementById('lowStockCard');
     const table = document.getElementById('lowStockTable');
-    const count = document.getElementById('lowStockCount');
-    
-    count.textContent = products.length;
     
     if (products.length === 0) {
         card.style.display = 'none';
@@ -204,6 +205,148 @@ function updateLowStock(products) {
             </td>
         </tr>
     `).join('');
+}
+
+function updateCreditsAlerts(summary) {
+    creditsSummary = summary;
+    
+    // Update stat card
+    const totalCreditsEl = document.getElementById('totalCredits');
+    const creditsLabelEl = document.getElementById('creditsLabel');
+    const creditsStatIcon = document.getElementById('creditsStatIcon');
+    
+    totalCreditsEl.textContent = Utils.formatCurrency(summary.totalPending);
+    creditsLabelEl.textContent = `${summary.totalCount} Créditos Pendientes`;
+    
+    // Change icon color based on urgency
+    if (summary.urgencyCounts.critical > 0) {
+        creditsStatIcon.style.background = 'rgba(239, 68, 68, 0.15)';
+        creditsStatIcon.querySelector('i').style.color = 'var(--danger)';
+        totalCreditsEl.classList.remove('text-warning');
+        totalCreditsEl.classList.add('text-danger');
+    } else if (summary.urgencyCounts.warning > 0) {
+        creditsStatIcon.style.background = 'rgba(245, 158, 11, 0.15)';
+        creditsStatIcon.querySelector('i').style.color = 'var(--warning)';
+        totalCreditsEl.classList.remove('text-danger');
+        totalCreditsEl.classList.add('text-warning');
+    } else {
+        creditsStatIcon.style.background = 'rgba(245, 158, 11, 0.15)';
+        creditsStatIcon.querySelector('i').style.color = 'var(--warning)';
+        totalCreditsEl.classList.remove('text-danger');
+        totalCreditsEl.classList.add('text-warning');
+    }
+    
+    // Update credits alert card
+    const alertCard = document.getElementById('creditsAlertCard');
+    const alertContent = document.getElementById('creditsAlertContent');
+    
+    if (summary.totalCount === 0) {
+        alertCard.style.display = 'none';
+        return;
+    }
+    
+    alertCard.style.display = 'block';
+    
+    // Build urgency summary
+    let urgencyHtml = '<div class="d-flex gap-2 flex-wrap mb-2">';
+    
+    if (summary.urgencyCounts.critical > 0) {
+        urgencyHtml += `
+            <span class="badge badge-danger" style="padding: 0.5rem 1rem;">
+                <i class="fas fa-exclamation-circle"></i> ${summary.urgencyCounts.critical} Vencidos (+30 días)
+            </span>
+        `;
+    }
+    if (summary.urgencyCounts.warning > 0) {
+        urgencyHtml += `
+            <span class="badge badge-warning" style="padding: 0.5rem 1rem;">
+                <i class="fas fa-clock"></i> ${summary.urgencyCounts.warning} Por vencer (15-29 días)
+            </span>
+        `;
+    }
+    if (summary.urgencyCounts.attention > 0) {
+        urgencyHtml += `
+            <span class="badge badge-primary" style="padding: 0.5rem 1rem;">
+                <i class="fas fa-info-circle"></i> ${summary.urgencyCounts.attention} Recientes (7-14 días)
+            </span>
+        `;
+    }
+    if (summary.urgencyCounts.normal > 0) {
+        urgencyHtml += `
+            <span class="badge badge-success" style="padding: 0.5rem 1rem;">
+                <i class="fas fa-check-circle"></i> ${summary.urgencyCounts.normal} Nuevos (&lt;7 días)
+            </span>
+        `;
+    }
+    
+    urgencyHtml += '</div>';
+    
+    // Build credits table (show max 5 most urgent)
+    const creditsToShow = summary.credits.slice(0, 5);
+    
+    let tableHtml = `
+        <div class="table-container">
+            <table class="table" style="font-size: 0.85rem;">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Fecha</th>
+                        <th>Días</th>
+                        <th>Pendiente</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    creditsToShow.forEach(credit => {
+        let statusBadge = '';
+        switch (credit.urgency) {
+            case 'critical':
+                statusBadge = '<span class="badge badge-danger">Vencido</span>';
+                break;
+            case 'warning':
+                statusBadge = '<span class="badge badge-warning">Por vencer</span>';
+                break;
+            case 'attention':
+                statusBadge = '<span class="badge badge-primary">Reciente</span>';
+                break;
+            default:
+                statusBadge = '<span class="badge badge-success">Nuevo</span>';
+        }
+        
+        tableHtml += `
+            <tr>
+                <td>${Utils.escapeHtml(credit.clientName)}</td>
+                <td>${Utils.formatDate(credit.date)}</td>
+                <td><strong>${credit.daysSinceSale}</strong></td>
+                <td><strong class="text-warning">${Utils.formatCurrency(credit.pendingAmount)}</strong></td>
+                <td>${statusBadge}</td>
+            </tr>
+        `;
+    });
+    
+    tableHtml += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    if (summary.totalCount > 5) {
+        tableHtml += `<p class="text-muted text-center mt-1">Y ${summary.totalCount - 5} créditos más...</p>`;
+    }
+    
+    alertContent.innerHTML = urgencyHtml + tableHtml;
+}
+
+function scrollToCredits() {
+    const alertCard = document.getElementById('creditsAlertCard');
+    if (alertCard.style.display !== 'none') {
+        alertCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        // If no credits, go to sales page with filter
+        window.location.href = '/sales';
+    }
 }
 
 function updateCharts(chartData) {

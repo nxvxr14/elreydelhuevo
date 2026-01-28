@@ -1,20 +1,16 @@
 {
-  "cashRegisters": [
-    {
-      "id": "C17695345382555882",
-      "reference": "C17695345382555882",
-      "date": "2026-01-27",
-      "initialAmount": 300000,
-      "status": "closed",
-      "openedAt": "2026-01-27T17:22:18.256Z",
-      "closedAt": "2026-01-27T17:28:03.338Z",
-      "totalSales": 125000,
-      "totalExpenses": 30000,
-      "expectedAmount": 395000,
-      "finalAmount": 395000,
-      "salesCount": 2,
-      "expensesCount": 1
-    }
-  ],
-  "currentRegister": null
+  "cashRegisters": [],
+  "currentRegister": {
+    "id": "C17695742675363384",
+    "reference": "C17695742675363384",
+    "date": "2026-01-27",
+    "initialAmount": 300000,
+    "status": "open",
+    "openedAt": "2026-01-27T23:24:27-05:00",
+    "closedAt": null,
+    "totalSales": 0,
+    "totalExpenses": 0,
+    "expectedAmount": 300000,
+    "finalAmount": null
+  }
 }

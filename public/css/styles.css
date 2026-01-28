@@ -752,6 +752,16 @@ textarea.form-control {
     color: var(--info);
 }
 
+.badge-primary {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--primary);
+}
+
+.badge-secondary {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--text-secondary);
+}
+
 /* ========================================
    POS Styles
    ======================================== */

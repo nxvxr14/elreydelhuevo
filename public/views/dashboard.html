@@ -119,13 +119,26 @@
                     </div>
                 </div>
                 
-                <div class="stat-card">
-                    <div class="stat-icon inventory">
-                        <i class="fas fa-exclamation-triangle"></i>
+                <div class="stat-card" id="creditsStatCard" style="cursor: pointer;" onclick="scrollToCredits()">
+                    <div class="stat-icon" id="creditsStatIcon" style="background: rgba(245, 158, 11, 0.15);">
+                        <i class="fas fa-credit-card" style="color: var(--warning);"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 id="lowStockCount">0</h3>
-                        <p>Productos con Bajo Stock</p>
+                        <h3 id="totalCredits" class="text-warning">$ 0</h3>
+                        <p id="creditsLabel">Créditos Pendientes</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Credits Alert Section -->
+            <div class="card mb-3" id="creditsAlertCard" style="display: none;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 class="card-title"><i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i> Créditos Pendientes</h3>
+                    <a href="/sales?filter=credits" class="btn btn-sm btn-primary">Ver todos</a>
+                </div>
+                <div class="card-body">
+                    <div id="creditsAlertContent">
+                        <p>Cargando...</p>
                     </div>
                 </div>
             </div>

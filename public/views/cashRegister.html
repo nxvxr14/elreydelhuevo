@@ -123,10 +123,8 @@
         let currentPage = 1;
 
         document.addEventListener('DOMContentLoaded', () => {
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
-            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+            document.getElementById('filterStartDate').value = Utils.getFirstDayOfMonth();
+            document.getElementById('filterEndDate').value = Utils.getCurrentDate();
             
             loadCurrentStatus();
             loadHistory();

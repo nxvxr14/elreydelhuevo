@@ -42,17 +42,17 @@ function generateReference(prefix) {
 }
 
 /**
- * Obtiene la fecha actual en formato YYYY-MM-DD
+ * Obtiene la fecha actual en formato YYYY-MM-DD (zona horaria Bogotá, Colombia)
  */
 function getCurrentDate() {
-    return new Date().toISOString().split('T')[0];
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 }
 
 /**
- * Obtiene la fecha y hora actual en formato ISO
+ * Obtiene la fecha y hora actual en formato ISO (zona horaria Bogotá, Colombia)
  */
 function getCurrentDateTime() {
-    return new Date().toISOString();
+    return new Date().toLocaleString('sv-SE', { timeZone: 'America/Bogota' }).replace(' ', 'T') + '-05:00';
 }
 
 /**

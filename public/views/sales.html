@@ -70,24 +70,35 @@
                         <option value="">Todos</option>
                     </select>
                 </div>
+                <div class="filter-group">
+                    <label for="filterPaymentStatus">Estado:</label>
+                    <select id="filterPaymentStatus" class="form-control" onchange="loadSales()">
+                        <option value="">Todos</option>
+                        <option value="credits">Solo créditos pendientes</option>
+                        <option value="paid">Solo pagadas</option>
+                    </select>
+                </div>
             </div>
 
             <div class="card">
                 <div class="card-body">
-                    <div class="table-container">
-                        <table class="table">
+                    <div class="table-container" style="overflow-x: auto;">
+                        <table class="table" style="min-width: 100%; font-size: 0.85rem;">
                             <thead>
                                 <tr>
-                                    <th>Fecha</th>
-                                    <th>Referencia</th>
+                                    <th style="white-space: nowrap;">Fecha</th>
+                                    <th style="white-space: nowrap;">Ref.</th>
                                     <th>Cliente</th>
-                                    <th>Productos</th>
-                                    <th>Total</th>
-                                    <th>Acciones</th>
+                                    <th style="text-align: center;">Cant.</th>
+                                    <th style="white-space: nowrap;">Total</th>
+                                    <th style="text-align: center;">Origen</th>
+                                    <th style="white-space: nowrap;">Pago</th>
+                                    <th>Estado</th>
+                                    <th style="text-align: center;">Acc.</th>
                                 </tr>
                             </thead>
                             <tbody id="salesTable">
-                                <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                                <tr><td colspan="9" class="text-center">Cargando...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -133,14 +144,30 @@
                         <input type="date" id="saleDate" class="form-control">
                     </div>
                     
+                    <div class="form-group">
+                        <label for="salePaymentMethod">Método de Pago *</label>
+                        <select id="salePaymentMethod" class="form-control" required onchange="toggleInitialPaymentField()">
+                            <option value="cash">Efectivo</option>
+                            <option value="transfer">Transferencia</option>
+                            <option value="credit">Crédito</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="initialPaymentGroup" style="display: none;">
+                        <label for="saleInitialPayment">Abono Inicial</label>
+                        <input type="text" id="saleInitialPayment" class="form-control" placeholder="$ 0 (opcional)">
+                        <small class="text-muted">Deje en 0 si no hay abono inicial</small>
+                    </div>
+                    
                     <hr style="border-color: var(--border-color); margin: 1rem 0;">
                     
                     <h4 style="margin-bottom: 1rem;">Productos</h4>
                     
                     <div class="d-flex gap-1 mb-2" style="flex-wrap: wrap;">
-                        <select id="addProductSelect" class="form-control" style="flex: 2; min-width: 200px;">
-                            <option value="">Seleccionar producto...</option>
-                        </select>
+                        <div style="flex: 2; min-width: 200px; position: relative;">
+                            <input type="text" id="addProductSearch" class="form-control" placeholder="Buscar producto..." list="productsList" autocomplete="off" oninput="onProductSearchInput()">
+                            <datalist id="productsList"></datalist>
+                        </div>
                         <input type="text" id="addProductQty" class="form-control" placeholder="Cantidad" style="flex: 1; min-width: 100px;">
                         <input type="text" id="addProductPrice" class="form-control" placeholder="Precio unit." style="flex: 1; min-width: 120px;">
                         <button type="button" class="btn btn-secondary" onclick="addProductToManualSale()">
@@ -187,6 +214,39 @@
         </div>
     </div>
 
+    <!-- Payment Modal (for credit sales) -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-money-bill-wave"></i> Registrar Abono</h3>
+                <button class="modal-close" onclick="closePaymentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="paymentSaleInfo" class="mb-2" style="padding: 1rem; background: var(--bg-input); border-radius: 8px;">
+                    <!-- Sale info will be populated here -->
+                </div>
+                
+                <form id="paymentForm" onsubmit="event.preventDefault(); savePayment();">
+                    <div class="form-group">
+                        <label for="paymentAmount">Monto del Abono *</label>
+                        <input type="text" id="paymentAmount" class="form-control" required placeholder="$ 0">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="paymentNote">Nota (opcional)</label>
+                        <input type="text" id="paymentNote" class="form-control" maxlength="200" placeholder="Ej: Pago parcial">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closePaymentModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="savePayment()">
+                    <i class="fas fa-check"></i> Registrar Abono
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="/js/utils.js"></script>
     <script src="/js/auth.js"></script>
     <script>
@@ -196,11 +256,9 @@
         let currentPage = 1;
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Set default dates to current month
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            document.getElementById('filterStartDate').value = firstDay.toISOString().split('T')[0];
-            document.getElementById('filterEndDate').value = today.toISOString().split('T')[0];
+            // Set default dates to current month (Bogota timezone)
+            document.getElementById('filterStartDate').value = Utils.getFirstDayOfMonth();
+            document.getElementById('filterEndDate').value = Utils.getCurrentDate();
             
             loadFilters();
             loadSales();
@@ -238,13 +296,23 @@
                 const endDate = document.getElementById('filterEndDate').value;
                 const clientId = document.getElementById('filterClient').value;
                 const productId = document.getElementById('filterProduct').value;
+                const paymentStatus = document.getElementById('filterPaymentStatus').value;
                 
                 let url = `/api/sales?startDate=${startDate}&endDate=${endDate}`;
                 if (clientId) url += `&clientId=${clientId}`;
                 if (productId) url += `&productId=${productId}`;
                 
                 const result = await Utils.fetch(url);
-                sales = result.sales.reverse(); // Últimos primero
+                let salesData = result.sales.reverse(); // Últimos primero
+                
+                // Apply payment status filter on client side
+                if (paymentStatus === 'credits') {
+                    salesData = salesData.filter(s => s.paymentMethod === 'credit' && s.status === 'pending');
+                } else if (paymentStatus === 'paid') {
+                    salesData = salesData.filter(s => s.status === 'paid' || s.paymentMethod !== 'credit');
+                }
+                
+                sales = salesData;
                 currentPage = 1;
                 renderSales();
             } catch (error) {
@@ -258,7 +326,7 @@
             const table = document.getElementById('salesTable');
             
             if (sales.length === 0) {
-                table.innerHTML = '<tr><td colspan="6" class="text-center"><div class="empty-state"><i class="fas fa-shopping-cart"></i><h3>No hay ventas</h3></div></td></tr>';
+                table.innerHTML = '<tr><td colspan="9" class="text-center"><div class="empty-state"><i class="fas fa-shopping-cart"></i><h3>No hay ventas</h3></div></td></tr>';
                 document.getElementById('salesPagination').innerHTML = '';
                 return;
             }
@@ -268,21 +336,62 @@
             
             table.innerHTML = items.map(sale => {
                 const totalItems = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+                
+                // Source badge
+                const sourceBadge = sale.source === 'pos' 
+                    ? '<span class="badge badge-primary">POS</span>' 
+                    : '<span class="badge badge-secondary">Manual</span>';
+                
+                // Payment method label
+                const paymentLabels = { cash: 'Efectivo', transfer: 'Transferencia', credit: 'Crédito' };
+                const paymentMethod = sale.paymentMethod || 'cash';
+                const paymentLabel = paymentLabels[paymentMethod] || 'Efectivo';
+                
+                // Status for credit sales
+                let statusHtml = '';
+                if (paymentMethod === 'credit') {
+                    if (sale.status === 'pending') {
+                        statusHtml = `<span class="badge badge-warning" title="Pendiente: ${Utils.formatCurrency(sale.pendingAmount || 0)}">Pendiente</span>`;
+                    } else {
+                        statusHtml = '<span class="badge badge-success">Pagado</span>';
+                    }
+                } else {
+                    statusHtml = '<span class="badge badge-success">OK</span>';
+                }
+                
+                // Action buttons
+                let actionButtons = `
+                    <button class="btn btn-sm btn-info" onclick="viewSaleDetail('${sale.id}')" title="Ver detalle">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                `;
+                
+                // Add payment button for pending credit sales
+                if (paymentMethod === 'credit' && sale.status === 'pending') {
+                    actionButtons += `
+                        <button class="btn btn-sm btn-success" onclick="showPaymentModal('${sale.id}')" title="Abonar">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </button>
+                    `;
+                }
+                
+                actionButtons += `
+                    <button class="btn btn-sm btn-danger" onclick="deleteSale('${sale.id}')" title="Eliminar">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                `;
+                
                 return `
                     <tr>
-                        <td>${Utils.formatDate(sale.date)}</td>
-                        <td><code>${sale.reference}</code></td>
+                        <td style="white-space: nowrap;">${Utils.formatDate(sale.date)}</td>
+                        <td><code style="font-size: 0.75rem;">${sale.reference.substring(0, 8)}...</code></td>
                         <td>${Utils.escapeHtml(sale.clientName)}</td>
-                        <td>${totalItems} productos</td>
-                        <td><strong>${Utils.formatCurrency(sale.total)}</strong></td>
-                        <td class="table-actions">
-                            <button class="btn btn-sm btn-info" onclick="viewSaleDetail('${sale.id}')" title="Ver detalle">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteSale('${sale.id}')" title="Eliminar">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
+                        <td style="text-align: center;">${totalItems}</td>
+                        <td style="white-space: nowrap;"><strong>${Utils.formatCurrency(sale.total)}</strong></td>
+                        <td style="text-align: center;">${sourceBadge}</td>
+                        <td style="white-space: nowrap;">${paymentLabel}</td>
+                        <td>${statusHtml}</td>
+                        <td class="table-actions" style="white-space: nowrap;">${actionButtons}</td>
                     </tr>
                 `;
             }).join('');
@@ -301,12 +410,51 @@
                 const result = await Utils.fetch(`/api/sales/${id}`);
                 const sale = result.sale;
                 
+                // Payment method info
+                const paymentLabels = { cash: 'Efectivo', transfer: 'Transferencia', credit: 'Crédito' };
+                const paymentMethod = sale.paymentMethod || 'cash';
+                const paymentLabel = paymentLabels[paymentMethod] || 'Efectivo';
+                
+                // Credit payment history
+                let creditInfo = '';
+                if (paymentMethod === 'credit') {
+                    const statusLabel = sale.status === 'pending' ? 'Pendiente' : 'Pagado';
+                    creditInfo = `
+                        <div class="mt-2" style="padding: 1rem; background: var(--bg-input); border-radius: 8px;">
+                            <h4 class="mb-1">Información de Crédito</h4>
+                            <strong>Estado:</strong> ${statusLabel}<br>
+                            <strong>Total Abonado:</strong> ${Utils.formatCurrency(sale.paidAmount || 0)}<br>
+                            <strong>Saldo Pendiente:</strong> ${Utils.formatCurrency(sale.pendingAmount || 0)}
+                            
+                            ${sale.payments && sale.payments.length > 0 ? `
+                                <h5 class="mt-2 mb-1">Historial de Abonos</h5>
+                                <table class="table" style="font-size: 0.85rem;">
+                                    <thead>
+                                        <tr><th>Fecha</th><th>Monto</th><th>Nota</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        ${sale.payments.map(p => `
+                                            <tr>
+                                                <td>${Utils.formatDate(p.date)}</td>
+                                                <td>${Utils.formatCurrency(p.amount)}</td>
+                                                <td>${Utils.escapeHtml(p.note || '-')}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+                
                 const content = document.getElementById('saleDetailContent');
                 content.innerHTML = `
                     <div class="mb-2">
                         <strong>Referencia:</strong> <code>${sale.reference}</code><br>
                         <strong>Fecha:</strong> ${Utils.formatDate(sale.date)}<br>
-                        <strong>Cliente:</strong> ${Utils.escapeHtml(sale.clientName)}
+                        <strong>Cliente:</strong> ${Utils.escapeHtml(sale.clientName)}<br>
+                        <strong>Origen:</strong> ${sale.source === 'pos' ? 'POS' : 'Manual'}<br>
+                        <strong>Método de Pago:</strong> ${paymentLabel}
                     </div>
                     
                     <h4 class="mb-1">Productos</h4>
@@ -332,10 +480,10 @@
                     </table>
                     
                     <div class="mt-2">
-                        <strong>Total:</strong> ${Utils.formatCurrency(sale.total)}<br>
-                        <strong>Recibido:</strong> ${Utils.formatCurrency(sale.received)}<br>
-                        <strong>Cambio:</strong> ${Utils.formatCurrency(sale.change)}
+                        <strong>Total:</strong> ${Utils.formatCurrency(sale.total)}
                     </div>
+                    
+                    ${creditInfo}
                     
                     ${sale.note ? `<div class="mt-2"><strong>Nota:</strong> ${Utils.escapeHtml(sale.note)}</div>` : ''}
                 `;
@@ -377,11 +525,15 @@
         
         // ============ MANUAL SALE FUNCTIONS ============
         let manualSaleItems = [];
+        let selectedProductData = null;
         
         function showManualSaleModal() {
             manualSaleItems = [];
+            selectedProductData = null;
             document.getElementById('manualSaleForm').reset();
-            document.getElementById('saleDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('saleDate').value = Utils.getCurrentDate();
+            document.getElementById('salePaymentMethod').value = 'cash';
+            toggleInitialPaymentField();
             
             // Populate client select
             const clientSelect = document.getElementById('saleClient');
@@ -390,19 +542,53 @@
                 clientSelect.innerHTML += `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`;
             });
             
-            // Populate product select
-            const productSelect = document.getElementById('addProductSelect');
-            productSelect.innerHTML = '<option value="">Seleccionar producto...</option>';
+            // Populate products datalist
+            const productsList = document.getElementById('productsList');
+            productsList.innerHTML = '';
             products.forEach(p => {
-                productSelect.innerHTML += `<option value="${p.id}" data-price="${p.price}" data-stock="${p.stock}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatNumber(p.stock)})</option>`;
+                const option = document.createElement('option');
+                option.value = p.name;
+                option.dataset.id = p.id;
+                option.dataset.price = p.price;
+                option.dataset.stock = p.stock;
+                productsList.appendChild(option);
             });
             
             // Setup money inputs
             Utils.setupMoneyInput(document.getElementById('addProductQty'));
             Utils.setupMoneyInput(document.getElementById('addProductPrice'));
+            Utils.setupMoneyInput(document.getElementById('saleInitialPayment'));
             
             renderManualSaleItems();
             document.getElementById('manualSaleModal').classList.add('active');
+        }
+        
+        function toggleInitialPaymentField() {
+            const paymentMethod = document.getElementById('salePaymentMethod').value;
+            const initialPaymentGroup = document.getElementById('initialPaymentGroup');
+            if (paymentMethod === 'credit') {
+                initialPaymentGroup.style.display = 'block';
+            } else {
+                initialPaymentGroup.style.display = 'none';
+                document.getElementById('saleInitialPayment').value = '';
+            }
+        }
+        
+        function onProductSearchInput() {
+            const searchInput = document.getElementById('addProductSearch');
+            const searchValue = searchInput.value.trim().toLowerCase();
+            const priceInput = document.getElementById('addProductPrice');
+            
+            // Find the product that matches the input
+            const product = products.find(p => p.name.toLowerCase() === searchValue);
+            
+            if (product) {
+                selectedProductData = product;
+                // Show default price
+                priceInput.value = Utils.formatNumber(product.price);
+            } else {
+                selectedProductData = null;
+            }
         }
         
         function closeManualSaleModal() {
@@ -410,14 +596,20 @@
         }
         
         function addProductToManualSale() {
-            const productSelect = document.getElementById('addProductSelect');
-            const productId = parseInt(productSelect.value);
-            const selectedOption = productSelect.options[productSelect.selectedIndex];
+            const searchInput = document.getElementById('addProductSearch');
+            const searchValue = searchInput.value.trim().toLowerCase();
             
-            if (!productId) {
-                Utils.showToast('Seleccione un producto', 'warning');
+            // Find product by name
+            const product = products.find(p => p.name.toLowerCase() === searchValue);
+            
+            if (!product) {
+                Utils.showToast('Seleccione un producto válido', 'warning');
                 return;
             }
+            
+            const productId = product.id;
+            const productName = product.name;
+            const stock = product.stock || 0;
             
             const qtyStr = document.getElementById('addProductQty').value;
             const quantity = Utils.parseNumber(qtyStr);
@@ -432,11 +624,8 @@
             
             // If no price entered, use product default price
             if (!unitPrice) {
-                unitPrice = parseInt(selectedOption.dataset.price) || 0;
+                unitPrice = product.price || 0;
             }
-            
-            const stock = parseInt(selectedOption.dataset.stock) || 0;
-            const productName = selectedOption.textContent.split(' (Stock:')[0];
             
             // Check if product already in list
             const existingItem = manualSaleItems.find(item => item.productId === productId);
@@ -463,9 +652,10 @@
             }
             
             // Clear inputs
-            productSelect.value = '';
+            searchInput.value = '';
             document.getElementById('addProductQty').value = '';
             document.getElementById('addProductPrice').value = '';
+            selectedProductData = null;
             
             renderManualSaleItems();
         }
@@ -552,6 +742,7 @@
             }
             
             const total = manualSaleItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            const paymentMethod = document.getElementById('salePaymentMethod').value;
             
             const saleData = {
                 clientId: parseInt(clientId),
@@ -562,8 +753,22 @@
                 })),
                 received: total,
                 date: document.getElementById('saleDate').value,
-                note: document.getElementById('saleNote').value.substring(0, 200)
+                note: document.getElementById('saleNote').value.substring(0, 200),
+                paymentMethod: paymentMethod
             };
+            
+            // Add initial payment for credit sales
+            if (paymentMethod === 'credit') {
+                const initialPaymentStr = document.getElementById('saleInitialPayment').value;
+                const initialPayment = Utils.parseNumber(initialPaymentStr) || 0;
+                
+                if (initialPayment > total) {
+                    Utils.showToast('El abono inicial no puede ser mayor al total', 'warning');
+                    return;
+                }
+                
+                saleData.initialPayment = initialPayment;
+            }
             
             try {
                 Utils.showLoading();
@@ -579,6 +784,79 @@
                 
             } catch (error) {
                 Utils.showToast(error.message || 'Error al registrar la venta', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+        
+        // ============ PAYMENT FUNCTIONS (for credit sales) ============
+        let currentPaymentSaleId = null;
+        
+        async function showPaymentModal(saleId) {
+            try {
+                Utils.showLoading();
+                const result = await Utils.fetch(`/api/sales/${saleId}`);
+                const sale = result.sale;
+                
+                currentPaymentSaleId = saleId;
+                
+                // Show sale info
+                const infoDiv = document.getElementById('paymentSaleInfo');
+                infoDiv.innerHTML = `
+                    <strong>Ref:</strong> <code>${sale.reference}</code><br>
+                    <strong>Cliente:</strong> ${Utils.escapeHtml(sale.clientName)}<br>
+                    <strong>Total:</strong> ${Utils.formatCurrency(sale.total)}<br>
+                    <strong>Abonado:</strong> ${Utils.formatCurrency(sale.paidAmount || 0)}<br>
+                    <strong style="color: var(--warning);">Saldo Pendiente: ${Utils.formatCurrency(sale.pendingAmount || 0)}</strong>
+                `;
+                
+                // Reset form
+                document.getElementById('paymentForm').reset();
+                Utils.setupMoneyInput(document.getElementById('paymentAmount'));
+                
+                document.getElementById('paymentModal').classList.add('active');
+            } catch (error) {
+                Utils.showToast('Error al cargar la venta', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+        
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.remove('active');
+            currentPaymentSaleId = null;
+        }
+        
+        async function savePayment() {
+            if (!currentPaymentSaleId) {
+                Utils.showToast('Error: No hay venta seleccionada', 'danger');
+                return;
+            }
+            
+            const amountStr = document.getElementById('paymentAmount').value;
+            const amount = Utils.parseNumber(amountStr);
+            
+            if (!amount || amount <= 0) {
+                Utils.showToast('Ingrese un monto válido', 'warning');
+                return;
+            }
+            
+            const note = document.getElementById('paymentNote').value.trim();
+            
+            try {
+                Utils.showLoading();
+                
+                await Utils.fetch(`/api/sales/${currentPaymentSaleId}/payment`, {
+                    method: 'POST',
+                    body: JSON.stringify({ amount, note })
+                });
+                
+                Utils.showToast('Abono registrado correctamente', 'success');
+                closePaymentModal();
+                loadSales();
+                
+            } catch (error) {
+                Utils.showToast(error.message || 'Error al registrar el abono', 'danger');
             } finally {
                 Utils.hideLoading();
             }
