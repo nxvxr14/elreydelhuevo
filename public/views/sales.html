@@ -386,7 +386,7 @@
                         <td style="white-space: nowrap;">${Utils.formatDate(sale.date)}</td>
                         <td><code style="font-size: 0.75rem;">${sale.reference.substring(0, 8)}...</code></td>
                         <td>${Utils.escapeHtml(sale.clientName)}</td>
-                        <td style="text-align: center;">${totalItems}</td>
+                        <td style="text-align: center;">${Utils.formatQuantity(totalItems)}</td>
                         <td style="white-space: nowrap;"><strong>${Utils.formatCurrency(sale.total)}</strong></td>
                         <td style="text-align: center;">${sourceBadge}</td>
                         <td style="white-space: nowrap;">${paymentLabel}</td>
@@ -471,7 +471,7 @@
                             ${sale.items.map(item => `
                                 <tr>
                                     <td>${Utils.escapeHtml(item.productName)}</td>
-                                    <td>${item.quantity}</td>
+                                    <td>${Utils.formatQuantity(item.quantity)}</td>
                                     <td>${Utils.formatCurrency(item.unitPrice)}</td>
                                     <td>${Utils.formatCurrency(item.subtotal)}</td>
                                 </tr>
@@ -555,7 +555,7 @@
             });
             
             // Setup money inputs
-            Utils.setupMoneyInput(document.getElementById('addProductQty'));
+            Utils.setupQuantityInput(document.getElementById('addProductQty'));
             Utils.setupMoneyInput(document.getElementById('addProductPrice'));
             Utils.setupMoneyInput(document.getElementById('saleInitialPayment'));
             
@@ -612,10 +612,10 @@
             const stock = product.stock || 0;
             
             const qtyStr = document.getElementById('addProductQty').value;
-            const quantity = Utils.parseNumber(qtyStr);
+            const quantity = Utils.parseQuantity(qtyStr);
             
-            if (!quantity || quantity <= 0) {
-                Utils.showToast('Ingrese una cantidad válida', 'warning');
+            if (!Utils.isValidQuantity(quantity) || quantity <= 0) {
+                Utils.showToast('Ingrese una cantidad válida (solo se permite ,5 como decimal)', 'warning');
                 return;
             }
             
@@ -632,14 +632,14 @@
             if (existingItem) {
                 const newQty = existingItem.quantity + quantity;
                 if (newQty > stock) {
-                    Utils.showToast(`Stock máximo disponible: ${Utils.formatNumber(stock)}`, 'warning');
+                    Utils.showToast(`Stock máximo disponible: ${Utils.formatQuantity(stock)}`, 'warning');
                     return;
                 }
                 existingItem.quantity = newQty;
                 existingItem.unitPrice = unitPrice;
             } else {
                 if (quantity > stock) {
-                    Utils.showToast(`Stock máximo disponible: ${Utils.formatNumber(stock)}`, 'warning');
+                    Utils.showToast(`Stock máximo disponible: ${Utils.formatQuantity(stock)}`, 'warning');
                     return;
                 }
                 manualSaleItems.push({
@@ -666,13 +666,13 @@
         }
         
         function updateManualSaleItemQty(index, qtyStr) {
-            const qty = Utils.parseNumber(qtyStr);
-            if (qty <= 0) {
+            const qty = Utils.parseQuantity(qtyStr);
+            if (!Utils.isValidQuantity(qty) || qty <= 0) {
                 removeManualSaleItem(index);
                 return;
             }
             if (qty > manualSaleItems[index].maxStock) {
-                Utils.showToast(`Stock máximo: ${Utils.formatNumber(manualSaleItems[index].maxStock)}`, 'warning');
+                Utils.showToast(`Stock máximo: ${Utils.formatQuantity(manualSaleItems[index].maxStock)}`, 'warning');
                 return;
             }
             manualSaleItems[index].quantity = qty;
@@ -707,7 +707,7 @@
                         <td>${Utils.escapeHtml(item.productName)}</td>
                         <td>
                             <input type="text" class="form-control" style="width: 80px;" 
-                                   value="${Utils.formatNumber(item.quantity)}" 
+                                   value="${Utils.formatQuantity(item.quantity)}" 
                                    onchange="updateManualSaleItemQty(${index}, this.value)">
                         </td>
                         <td>

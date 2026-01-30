@@ -194,7 +194,7 @@ function updateLowStock(products) {
             <td>${Utils.escapeHtml(product.name)}</td>
             <td>
                 <span class="badge ${product.stock === 0 ? 'badge-danger' : 'badge-warning'}">
-                    ${product.stock} unidades
+                    ${Utils.formatQuantity(product.stock)} unidades
                 </span>
             </td>
             <td>

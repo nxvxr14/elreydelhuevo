@@ -97,7 +97,7 @@ function renderProducts() {
             <td>${Utils.escapeHtml(product.categoryName)}</td>
             <td>
                 <span class="badge ${product.stock <= 0 ? 'badge-danger' : product.stock < 10 ? 'badge-warning' : 'badge-success'}">
-                    ${Utils.formatNumber(product.stock)}
+                    ${Utils.formatQuantity(product.stock)}
                 </span>
             </td>
             <td>${Utils.formatCurrency(product.price)}</td>
@@ -132,7 +132,7 @@ function showProductModal(product = null) {
     const priceInput = document.getElementById('productPrice');
     const stockInput = document.getElementById('productStock');
     Utils.setupMoneyInput(priceInput);
-    Utils.setupMoneyInput(stockInput);
+    Utils.setupQuantityInput(stockInput);
     
     if (product) {
         title.textContent = 'Editar Producto';
@@ -140,7 +140,7 @@ function showProductModal(product = null) {
         document.getElementById('productName').value = product.name;
         document.getElementById('productCategory').value = product.categoryId;
         priceInput.value = Utils.formatNumber(product.price);
-        stockInput.value = Utils.formatNumber(product.stock);
+        stockInput.value = Utils.formatQuantity(product.stock);
         originalStock = product.stock; // Guardar stock original
     } else {
         title.textContent = 'Nuevo Producto';
@@ -157,7 +157,7 @@ function closeProductModal() {
 async function saveProduct() {
     const id = document.getElementById('productId').value;
     const stockStr = document.getElementById('productStock').value;
-    const newStock = Utils.parseNumber(stockStr);
+    const newStock = Utils.parseQuantity(stockStr);
     const priceStr = document.getElementById('productPrice').value;
     const price = Utils.parseNumber(priceStr);
     const data = {
@@ -177,8 +177,8 @@ async function saveProduct() {
         return;
     }
     
-    if (newStock < 0) {
-        Utils.showToast('El stock no puede ser negativo', 'warning');
+    if (!Utils.isValidQuantity(newStock) || newStock < 0) {
+        Utils.showToast('El stock no puede ser negativo y solo puede tener ,5 como decimal', 'warning');
         return;
     }
     

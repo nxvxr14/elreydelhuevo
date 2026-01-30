@@ -43,6 +43,10 @@ const ProductService = {
             return { success: false, message: 'El stock debe ser un número positivo' };
         }
         
+        if (!db.isValidQuantity(productData.stock)) {
+            return { success: false, message: 'El stock solo puede tener .5 como decimal (ej: 10, 10.5)' };
+        }
+        
         // Incrementar ID
         data.lastId++;
         
@@ -51,7 +55,7 @@ const ProductService = {
             name: productData.name.trim(),
             categoryId: parseInt(productData.categoryId) || 1,
             price: parseFloat(productData.price),
-            stock: parseInt(productData.stock) || 0,
+            stock: parseFloat(productData.stock) || 0,
             createdAt: db.getCurrentDateTime(),
             updatedAt: db.getCurrentDateTime()
         };
@@ -92,6 +96,10 @@ const ProductService = {
             return { success: false, message: 'El stock debe ser un número positivo' };
         }
         
+        if (productData.stock !== undefined && !db.isValidQuantity(productData.stock)) {
+            return { success: false, message: 'El stock solo puede tener .5 como decimal (ej: 10, 10.5)' };
+        }
+        
         // Actualizar campos
         if (productData.name !== undefined) {
             data.products[index].name = productData.name.trim();
@@ -103,7 +111,7 @@ const ProductService = {
             data.products[index].price = parseFloat(productData.price);
         }
         if (productData.stock !== undefined) {
-            data.products[index].stock = parseInt(productData.stock);
+            data.products[index].stock = parseFloat(productData.stock);
         }
         
         data.products[index].updatedAt = db.getCurrentDateTime();

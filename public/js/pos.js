@@ -124,7 +124,7 @@ function renderProductsGrid(productsToShow) {
              onclick="${product.stock > 0 ? `addToCart(${product.id})` : ''}">
             <h4 title="${Utils.escapeHtml(product.name)}">${Utils.escapeHtml(product.name)}</h4>
             <div class="price">${Utils.formatCurrency(product.price)}</div>
-            <div class="stock">${product.stock > 0 ? `Stock: ${Utils.formatNumber(product.stock)}` : 'Sin stock'}</div>
+            <div class="stock">${product.stock > 0 ? `Stock: ${Utils.formatQuantity(product.stock)}` : 'Sin stock'}</div>
         </div>
     `).join('');
 }
@@ -146,7 +146,7 @@ function addToCart(productId) {
     
     if (existingItem) {
         if (existingItem.quantity >= product.stock) {
-            Utils.showToast(`Stock máximo disponible: ${Utils.formatNumber(product.stock)}`, 'warning');
+            Utils.showToast(`Stock máximo disponible: ${Utils.formatQuantity(product.stock)}`, 'warning');
             return;
         }
         existingItem.quantity++;
@@ -173,7 +173,9 @@ function updateQuantity(productId, delta) {
     const item = cart.find(i => i.productId === productId);
     if (!item) return;
     
-    const newQty = item.quantity + delta;
+    // Delta de 0.5 para media unidad
+    const step = delta > 0 ? 0.5 : -0.5;
+    const newQty = item.quantity + step;
     
     if (newQty <= 0) {
         removeFromCart(productId);
@@ -181,7 +183,7 @@ function updateQuantity(productId, delta) {
     }
     
     if (newQty > item.maxStock) {
-        Utils.showToast(`Stock máximo disponible: ${Utils.formatNumber(item.maxStock)}`, 'warning');
+        Utils.showToast(`Stock máximo disponible: ${Utils.formatQuantity(item.maxStock)}`, 'warning');
         return;
     }
     
@@ -193,15 +195,16 @@ function updateQuantityDirect(productId, value) {
     const item = cart.find(i => i.productId === productId);
     if (!item) return;
     
-    const newQty = Utils.parseNumber(value);
+    const newQty = Utils.parseQuantity(value);
     
-    if (newQty <= 0 || isNaN(newQty)) {
+    // Validar que sea cantidad válida (entero o ,5)
+    if (!Utils.isValidQuantity(newQty) || newQty <= 0) {
         removeFromCart(productId);
         return;
     }
     
     if (newQty > item.maxStock) {
-        Utils.showToast(`Stock máximo disponible: ${Utils.formatNumber(item.maxStock)}`, 'warning');
+        Utils.showToast(`Stock máximo disponible: ${Utils.formatQuantity(item.maxStock)}`, 'warning');
         item.quantity = item.maxStock;
     } else {
         item.quantity = newQty;
@@ -265,7 +268,7 @@ function renderCart() {
                     <div class="cart-qty-control">
                         <button onclick="updateQuantity(${item.productId}, -1)">-</button>
                         <input type="text" class="qty-input" 
-                               value="${Utils.formatNumber(item.quantity)}" 
+                               value="${Utils.formatQuantity(item.quantity)}" 
                                onchange="updateQuantityDirect(${item.productId}, this.value)"
                                onclick="this.select()">
                         <button onclick="updateQuantity(${item.productId}, 1)">+</button>
@@ -287,7 +290,7 @@ function renderCart() {
         `;
     }).join('');
     
-    cartCount.textContent = Utils.formatNumber(totalItems);
+    cartCount.textContent = Utils.formatQuantity(totalItems);
     cartTotal.textContent = Utils.formatCurrency(total);
     
     // Update received amount to match total if empty

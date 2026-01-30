@@ -167,7 +167,7 @@
                 const entrySelect = document.getElementById('entryProduct');
                 
                 products.forEach(p => {
-                    filterSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatNumber(p.stock)})</option>`;
+                    filterSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatQuantity(p.stock)})</option>`;
                     entrySelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
                 });
             } catch (error) {
@@ -213,7 +213,7 @@
                     <td>${Utils.formatDate(entry.date)}</td>
                     <td><code>${entry.reference}</code></td>
                     <td>${Utils.escapeHtml(entry.productName)}</td>
-                    <td><span class="badge badge-success">+${Utils.formatNumber(entry.quantity)}</span></td>
+                    <td><span class="badge badge-success">+${Utils.formatQuantity(entry.quantity)}</span></td>
                     <td>${Utils.escapeHtml(entry.origin)}</td>
                     <td class="table-actions">
                         <button class="btn btn-sm btn-info" onclick="viewEntryDetail('${entry.id}')"><i class="fas fa-eye"></i></button>
@@ -235,7 +235,7 @@
             document.getElementById('entryDate').value = Utils.getCurrentDate();
             
             const quantityInput = document.getElementById('entryQuantity');
-            Utils.setupMoneyInput(quantityInput);
+            Utils.setupQuantityInput(quantityInput);
             
             document.getElementById('entryModal').classList.add('active');
         }
@@ -246,7 +246,7 @@
 
         async function saveEntry() {
             const quantityStr = document.getElementById('entryQuantity').value;
-            const quantity = Utils.parseNumber(quantityStr);
+            const quantity = Utils.parseQuantity(quantityStr);
             const data = {
                 productId: document.getElementById('entryProduct').value,
                 quantity: quantity,
@@ -260,8 +260,8 @@
                 return;
             }
             
-            if (quantity <= 0) {
-                Utils.showToast('La cantidad debe ser mayor a 0', 'warning');
+            if (!Utils.isValidQuantity(quantity) || quantity <= 0) {
+                Utils.showToast('La cantidad debe ser mayor a 0 y solo puede tener ,5 como decimal', 'warning');
                 return;
             }
             
@@ -301,7 +301,7 @@
                     <p><strong>Referencia:</strong> <code>${entry.reference}</code></p>
                     <p><strong>Fecha:</strong> ${Utils.formatDate(entry.date)}</p>
                     <p><strong>Producto:</strong> ${product ? Utils.escapeHtml(product.name) : 'Producto eliminado'}</p>
-                    <p><strong>Cantidad:</strong> <span class="badge badge-success">+${Utils.formatNumber(entry.quantity)}</span></p>
+                    <p><strong>Cantidad:</strong> <span class="badge badge-success">+${Utils.formatQuantity(entry.quantity)}</span></p>
                     <p><strong>Origen:</strong> ${Utils.escapeHtml(entry.origin)}</p>
                     ${entry.note ? `<p><strong>Nota:</strong> ${Utils.escapeHtml(entry.note)}</p>` : ''}
                 `;

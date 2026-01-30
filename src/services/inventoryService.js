@@ -79,8 +79,12 @@ const InventoryService = {
             return { success: false, message: 'Producto no encontrado' };
         }
         
-        if (!db.isPositiveNumber(entryData.quantity) || parseInt(entryData.quantity) <= 0) {
+        if (!db.isPositiveNumber(entryData.quantity) || parseFloat(entryData.quantity) <= 0) {
             return { success: false, message: 'La cantidad debe ser un número positivo mayor a 0' };
+        }
+        
+        if (!db.isValidQuantity(entryData.quantity)) {
+            return { success: false, message: 'La cantidad solo puede tener .5 como decimal (ej: 10, 10.5)' };
         }
         
         if (!entryData.origin || entryData.origin.trim() === '') {
@@ -98,7 +102,7 @@ const InventoryService = {
             id: reference,
             reference,
             productId: parseInt(entryData.productId),
-            quantity: parseInt(entryData.quantity),
+            quantity: parseFloat(entryData.quantity),
             origin: entryData.origin.trim(),
             note: entryData.note ? entryData.note.substring(0, 200) : '',
             date: entryData.date || db.getCurrentDate(),
@@ -106,7 +110,7 @@ const InventoryService = {
         };
         
         // Actualizar stock del producto
-        const stockResult = ProductService.updateStock(entryData.productId, parseInt(entryData.quantity));
+        const stockResult = ProductService.updateStock(entryData.productId, parseFloat(entryData.quantity));
         if (!stockResult.success) {
             return { success: false, message: `Error al actualizar stock: ${stockResult.message}` };
         }

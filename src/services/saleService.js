@@ -117,6 +117,15 @@ const SaleService = {
         
         // Verificar stock de todos los productos antes de proceder
         for (const item of saleData.items) {
+            // Validar que la cantidad sea válida (entero o .5)
+            if (!db.isValidQuantity(item.quantity)) {
+                const product = ProductService.getById(item.productId);
+                return { 
+                    success: false, 
+                    message: `Cantidad inválida para "${product ? product.name : 'producto'}". Solo se permite .5 como decimal.` 
+                };
+            }
+            
             const stockCheck = ProductService.checkStock(item.productId, item.quantity);
             if (!stockCheck.available) {
                 const product = ProductService.getById(item.productId);
@@ -134,7 +143,7 @@ const SaleService = {
             total += subtotal;
             return {
                 productId: parseInt(item.productId),
-                quantity: parseInt(item.quantity),
+                quantity: parseFloat(item.quantity),
                 unitPrice: Math.round(parseFloat(item.unitPrice)),
                 subtotal: Math.round(subtotal)
             };
@@ -228,6 +237,18 @@ const SaleService = {
         // Verificar nuevo stock
         if (saleData.items) {
             for (const item of saleData.items) {
+                // Validar que la cantidad sea válida (entero o .5)
+                if (!db.isValidQuantity(item.quantity)) {
+                    // Revertir restauración de stock
+                    for (const oldItem of oldSale.items) {
+                        ProductService.updateStock(oldItem.productId, -oldItem.quantity);
+                    }
+                    return { 
+                        success: false, 
+                        message: `Cantidad inválida. Solo se permite .5 como decimal.` 
+                    };
+                }
+                
                 const stockCheck = ProductService.checkStock(item.productId, item.quantity);
                 if (!stockCheck.available) {
                     // Revertir restauración de stock
@@ -250,7 +271,7 @@ const SaleService = {
             total += subtotal;
             return {
                 productId: parseInt(item.productId),
-                quantity: parseInt(item.quantity),
+                quantity: parseFloat(item.quantity),
                 unitPrice: Math.round(parseFloat(item.unitPrice)),
                 subtotal: Math.round(subtotal)
             };

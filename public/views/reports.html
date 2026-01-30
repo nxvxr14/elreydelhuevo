@@ -676,7 +676,7 @@
                                             <td>${Utils.escapeHtml(p.name)}</td>
                                             <td>
                                                 <span class="badge ${p.stock === 0 ? 'badge-danger' : p.stock < 10 ? 'badge-warning' : 'badge-success'}">
-                                                    ${p.stock}
+                                                    ${Utils.formatQuantity(p.stock)}
                                                 </span>
                                             </td>
                                         </tr>
@@ -710,7 +710,7 @@
                                                 <td>${Utils.formatDate(e.date)}</td>
                                                 <td><code>${e.reference}</code></td>
                                                 <td>${Utils.escapeHtml(e.productName)}</td>
-                                                <td><span class="badge badge-success">+${e.quantity}</span></td>
+                                                <td><span class="badge badge-success">+${Utils.formatQuantity(e.quantity)}</span></td>
                                                 <td>${Utils.escapeHtml(e.origin)}</td>
                                             </tr>
                                         `).join('')

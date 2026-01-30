@@ -310,6 +310,63 @@ const Utils = {
     },
     
     /**
+     * Formatea una cantidad de producto (permite ,5 para media unidad)
+     * Ejemplos: 1000 -> "1.000", 1000.5 -> "1.000,5", 0.5 -> "0,5"
+     */
+    formatQuantity(num) {
+        if (num === null || num === undefined || num === '') return '';
+        const value = Number(num) || 0;
+        const intPart = Math.floor(value);
+        const hasHalf = (value - intPart) === 0.5;
+        
+        const formattedInt = intPart.toLocaleString('es-CO');
+        return hasHalf ? `${formattedInt},5` : formattedInt;
+    },
+    
+    /**
+     * Parsea una cantidad de producto (acepta ,5 para media unidad)
+     * Solo permite decimales de 0,5 - cualquier otro decimal se redondea a ,5 o entero
+     * Ejemplos: "1.000,5" -> 1000.5, "1.000" -> 1000, "0,5" -> 0.5
+     */
+    parseQuantity(str) {
+        if (!str) return 0;
+        const s = String(str).trim();
+        
+        // Verificar si tiene ,5 al final
+        const hasHalf = s.endsWith(',5');
+        
+        // Quitar puntos de miles y la coma con el 5
+        let cleanStr = s.replace(/\./g, '').replace(',5', '').replace(/[^0-9-]/g, '');
+        const intPart = parseInt(cleanStr) || 0;
+        
+        return hasHalf ? intPart + 0.5 : intPart;
+    },
+    
+    /**
+     * Valida que una cantidad solo tenga decimales de 0,5 o sea entera
+     * Retorna true si es válida, false si tiene decimales inválidos
+     */
+    isValidQuantity(num) {
+        if (num === null || num === undefined) return false;
+        const value = Number(num);
+        if (isNaN(value) || value < 0) return false;
+        
+        // Verificar que el decimal sea 0 o 0.5
+        const decimal = value - Math.floor(value);
+        return decimal === 0 || decimal === 0.5;
+    },
+    
+    /**
+     * Redondea una cantidad al valor válido más cercano (entero o ,5)
+     */
+    roundQuantity(num) {
+        if (num === null || num === undefined) return 0;
+        const value = Number(num) || 0;
+        // Redondear a 0.5 más cercano
+        return Math.round(value * 2) / 2;
+    },
+    
+    /**
      * Configura un input para formatear dinero automáticamente
      */
     setupMoneyInput(input) {
@@ -339,6 +396,57 @@ const Utils = {
             if (this.value) {
                 const num = Utils.parseNumber(this.value);
                 this.value = num > 0 ? Utils.formatNumber(num) : '';
+            }
+        });
+    },
+    
+    /**
+     * Configura un input para formatear cantidades (permite ,5 para media unidad)
+     */
+    setupQuantityInput(input) {
+        input.addEventListener('input', function(e) {
+            // Guardar posición del cursor
+            const cursorPos = this.selectionStart;
+            const oldLength = this.value.length;
+            
+            // Permitir números, puntos (miles) y coma seguida de 5
+            let value = this.value;
+            
+            // Verificar si termina en coma o en ,5
+            const endsWithComma = value.endsWith(',');
+            const endsWithComma5 = value.endsWith(',5');
+            
+            // Limpiar: quitar todo excepto números, puntos y coma
+            let cleanValue = value.replace(/[^0-9.,]/g, '');
+            
+            // Quitar puntos de miles para procesar
+            let numericPart = cleanValue.replace(/\./g, '').replace(',5', '').replace(',', '');
+            
+            // Formatear parte entera
+            if (numericPart) {
+                numericPart = parseInt(numericPart).toLocaleString('es-CO');
+            }
+            
+            // Agregar ,5 si corresponde
+            if (endsWithComma5) {
+                this.value = numericPart + ',5';
+            } else if (endsWithComma) {
+                this.value = numericPart + ',';
+            } else {
+                this.value = numericPart;
+            }
+            
+            // Ajustar posición del cursor
+            const newLength = this.value.length;
+            const diff = newLength - oldLength;
+            this.setSelectionRange(cursorPos + diff, cursorPos + diff);
+        });
+        
+        // Al perder foco, asegurar formato correcto (solo ,5 permitido)
+        input.addEventListener('blur', function() {
+            if (this.value) {
+                const qty = Utils.parseQuantity(this.value);
+                this.value = qty > 0 ? Utils.formatQuantity(qty) : '';
             }
         });
     },

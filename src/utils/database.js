@@ -78,6 +78,28 @@ function formatCurrency(amount) {
     return Math.round(amount);
 }
 
+/**
+ * Valida que una cantidad solo tenga decimales de 0,5 o sea entera
+ * Retorna true si es válida, false si tiene decimales inválidos
+ */
+function isValidQuantity(value) {
+    const num = parseFloat(value);
+    if (isNaN(num) || num < 0) return false;
+    
+    // Verificar que el decimal sea 0 o 0.5
+    const decimal = num - Math.floor(num);
+    // Usar tolerancia para evitar errores de punto flotante
+    return decimal < 0.001 || (decimal > 0.499 && decimal < 0.501);
+}
+
+/**
+ * Redondea una cantidad al valor válido más cercano (entero o ,5)
+ */
+function roundQuantity(value) {
+    const num = parseFloat(value) || 0;
+    return Math.round(num * 2) / 2;
+}
+
 module.exports = {
     readJSON,
     writeJSON,
@@ -86,5 +108,7 @@ module.exports = {
     getCurrentDateTime,
     isPositiveNumber,
     isValidDate,
-    formatCurrency
+    formatCurrency,
+    isValidQuantity,
+    roundQuantity
 };
