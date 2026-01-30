@@ -122,6 +122,24 @@
                         <option value="all">Todos</option>
                     </select>
                 </div>
+                <div class="filter-group" id="filterPaymentMethodGroup" style="display: none;">
+                    <label for="filterPaymentMethod">Método Pago:</label>
+                    <select id="filterPaymentMethod" class="form-control" onchange="onPaymentMethodChange()">
+                        <option value="">Todos</option>
+                        <option value="cash">Efectivo</option>
+                        <option value="transfer">Transferencia</option>
+                        <option value="credit">Crédito</option>
+                    </select>
+                </div>
+                <div class="filter-group" id="filterTransferTypeGroup" style="display: none;">
+                    <label for="filterTransferType">Tipo Transfer.:</label>
+                    <select id="filterTransferType" class="form-control" onchange="loadReport()">
+                        <option value="">Todas</option>
+                        <option value="nequi">Nequi</option>
+                        <option value="bancolombia">Bancolombia</option>
+                        <option value="davivienda">Davivienda</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Report Content -->
@@ -138,6 +156,21 @@
         let salesChart = null;
         let expensesChart = null;
         let availablePeriods = null;
+        
+        // Pagination state for each report type
+        let salesReportPage = 1;
+        let expensesReportPage = 1;
+        let inventoryReportPage = 1;
+        let creditsReportPage = 1;
+        let cashReportPage = 1;
+        const ITEMS_PER_PAGE = 20;
+        
+        // Cached report data for pagination
+        let cachedSalesData = null;
+        let cachedExpensesData = null;
+        let cachedInventoryData = null;
+        let cachedCreditsData = null;
+        let cachedCashData = null;
         
         const MONTH_NAMES = [
             'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -288,9 +321,57 @@
                 console.error('Error loading filters:', error);
             }
         }
+        
+        function onPaymentMethodChange() {
+            const paymentMethod = document.getElementById('filterPaymentMethod').value;
+            const transferTypeGroup = document.getElementById('filterTransferTypeGroup');
+            
+            // Show transfer type filter only if payment method is 'transfer'
+            if (paymentMethod === 'transfer') {
+                transferTypeGroup.style.display = 'flex';
+            } else {
+                transferTypeGroup.style.display = 'none';
+                document.getElementById('filterTransferType').value = '';
+            }
+            
+            loadReport();
+        }
+
+        // Page navigation functions
+        function goToSalesPage(page) {
+            salesReportPage = page;
+            renderSalesTable();
+        }
+        
+        function goToExpensesPage(page) {
+            expensesReportPage = page;
+            renderExpensesTable();
+        }
+        
+        function goToInventoryPage(page) {
+            inventoryReportPage = page;
+            renderInventoryTable();
+        }
+        
+        function goToCreditsPage(page) {
+            creditsReportPage = page;
+            renderCreditsTable();
+        }
+        
+        function goToCashPage(page) {
+            cashReportPage = page;
+            renderCashTable();
+        }
 
         function selectReportType(type) {
             currentReportType = type;
+            
+            // Reset pagination when changing report type
+            salesReportPage = 1;
+            expensesReportPage = 1;
+            inventoryReportPage = 1;
+            creditsReportPage = 1;
+            cashReportPage = 1;
             
             // Reset all buttons to secondary
             const allButtons = document.querySelectorAll('#btnDailyReport, #btnSalesReport, #btnExpensesReport, #btnCreditsReport, #btnInventoryReport, #btnCashReport');
@@ -312,6 +393,7 @@
             const showClient = type === 'sales' || type === 'credits';
             const showProduct = type === 'sales' || type === 'inventory';
             const showCreditStatus = type === 'credits';
+            const showPaymentMethod = type === 'sales';
             
             document.getElementById('filterDateGroup').style.display = showDate ? 'flex' : 'none';
             document.getElementById('filterDateTypeGroup').style.display = showRange ? 'flex' : 'none';
@@ -333,6 +415,11 @@
             document.getElementById('filterClientGroup').style.display = showClient ? 'flex' : 'none';
             document.getElementById('filterProductGroup').style.display = showProduct ? 'flex' : 'none';
             document.getElementById('filterCreditStatusGroup').style.display = showCreditStatus ? 'flex' : 'none';
+            document.getElementById('filterPaymentMethodGroup').style.display = showPaymentMethod ? 'flex' : 'none';
+            
+            // Hide transfer type filter when changing report type
+            document.getElementById('filterTransferTypeGroup').style.display = 'none';
+            document.getElementById('filterPaymentMethod').value = '';
             
             loadReport();
         }
@@ -433,17 +520,67 @@
             const endDate = document.getElementById('filterEndDate').value;
             const clientId = document.getElementById('filterClient').value;
             const productId = document.getElementById('filterProduct').value;
+            const paymentMethod = document.getElementById('filterPaymentMethod').value;
+            const transferType = document.getElementById('filterTransferType').value;
             
             let url = `/api/reports/sales?startDate=${startDate}&endDate=${endDate}`;
             if (clientId) url += `&clientId=${clientId}`;
             if (productId) url += `&productId=${productId}`;
             
             const result = await Utils.fetch(url);
-            const report = result.report;
+            let report = result.report;
+            
+            // Client-side filter by payment method
+            if (paymentMethod) {
+                report.sales = report.sales.filter(s => s.paymentMethod === paymentMethod);
+                
+                // If transfer, also filter by transfer type
+                if (paymentMethod === 'transfer' && transferType) {
+                    report.sales = report.sales.filter(s => s.transferType === transferType);
+                }
+                
+                // Recalculate stats based on filtered sales
+                report.stats.totalSales = report.sales.reduce((sum, s) => sum + s.total, 0);
+                report.stats.salesCount = report.sales.length;
+                report.stats.averageSale = report.sales.length > 0 ? Math.round(report.stats.totalSales / report.sales.length) : 0;
+                
+                // Recalculate salesByDay
+                report.salesByDay = {};
+                report.sales.forEach(s => {
+                    if (!report.salesByDay[s.date]) {
+                        report.salesByDay[s.date] = 0;
+                    }
+                    report.salesByDay[s.date] += s.total;
+                });
+            }
+            
+            // Sort sales by date descending (most recent first)
+            report.sales.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+            
+            // Cache data for pagination
+            cachedSalesData = report;
+            salesReportPage = 1;
             
             // Prepare chart data
             const labels = Object.keys(report.salesByDay).sort();
             const data = labels.map(date => report.salesByDay[date]);
+            
+            // Get payment method label for display
+            const paymentMethodLabels = {
+                '': 'Todos los Métodos',
+                'cash': 'Efectivo',
+                'transfer': 'Transferencia',
+                'credit': 'Crédito'
+            };
+            const transferTypeLabels = {
+                '': '',
+                'nequi': ' - Nequi',
+                'bancolombia': ' - Bancolombia',
+                'davivienda': ' - Davivienda'
+            };
+            const filterLabel = paymentMethod 
+                ? `(${paymentMethodLabels[paymentMethod]}${paymentMethod === 'transfer' ? transferTypeLabels[transferType] || '' : ''})` 
+                : '';
             
             const content = document.getElementById('reportContent');
             content.innerHTML = `
@@ -452,7 +589,7 @@
                         <div class="stat-icon sales"><i class="fas fa-chart-line"></i></div>
                         <div class="stat-info">
                             <h3>${Utils.formatCurrency(report.stats.totalSales)}</h3>
-                            <p>Total de Ventas</p>
+                            <p>Total de Ventas ${filterLabel}</p>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -472,13 +609,13 @@
                 </div>
                 
                 <div class="chart-container mb-3">
-                    <div class="chart-header"><h3>Ventas por Día</h3></div>
+                    <div class="chart-header"><h3>Ventas por Día ${filterLabel}</h3></div>
                     <canvas id="salesReportChart"></canvas>
                 </div>
                 
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Listado de Ventas</h3>
+                        <h3 class="card-title">Listado de Ventas ${filterLabel}</h3>
                     </div>
                     <div class="card-body">
                         <div class="table-container">
@@ -488,26 +625,21 @@
                                         <th>Fecha</th>
                                         <th>Referencia</th>
                                         <th>Cliente</th>
+                                        <th>Método</th>
                                         <th>Total</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    ${report.sales.length === 0 ? '<tr><td colspan="4" class="text-center">No hay ventas</td></tr>' :
-                                        report.sales.map(s => `
-                                            <tr>
-                                                <td>${Utils.formatDate(s.date)}</td>
-                                                <td><code>${s.reference}</code></td>
-                                                <td>${Utils.escapeHtml(s.clientName)}</td>
-                                                <td><strong>${Utils.formatCurrency(s.total)}</strong></td>
-                                            </tr>
-                                        `).join('')
-                                    }
+                                <tbody id="salesTableBody">
                                 </tbody>
                             </table>
                         </div>
+                        <div id="salesPagination" class="mt-2"></div>
                     </div>
                 </div>
             `;
+            
+            // Render table with pagination
+            renderSalesTable();
             
             // Create chart
             if (labels.length > 0) {
@@ -534,6 +666,36 @@
                 });
             }
         }
+        
+        function renderSalesTable() {
+            if (!cachedSalesData) return;
+            
+            const { items: sales, currentPage, totalPages } = Utils.paginate(cachedSalesData.sales, salesReportPage, ITEMS_PER_PAGE);
+            
+            const tbody = document.getElementById('salesTableBody');
+            if (!tbody) return;
+            
+            if (cachedSalesData.sales.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No hay ventas</td></tr>';
+            } else {
+                tbody.innerHTML = sales.map(s => {
+                    let methodDisplay = s.paymentMethod === 'cash' ? 'Efectivo' : 
+                                        s.paymentMethod === 'transfer' ? `Transfer${s.transferType ? ' (' + s.transferType.charAt(0).toUpperCase() + s.transferType.slice(1) + ')' : ''}` :
+                                        s.paymentMethod === 'credit' ? 'Crédito' : s.paymentMethod;
+                    return `
+                        <tr>
+                            <td>${Utils.formatDate(s.date)}</td>
+                            <td><code>${s.reference}</code></td>
+                            <td>${Utils.escapeHtml(s.clientName)}</td>
+                            <td><span class="badge ${s.paymentMethod === 'cash' ? 'badge-success' : s.paymentMethod === 'transfer' ? 'badge-info' : 'badge-warning'}">${methodDisplay}</span></td>
+                            <td><strong>${Utils.formatCurrency(s.total)}</strong></td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+            
+            Utils.renderPagination('salesPagination', currentPage, totalPages, 'goToSalesPage');
+        }
 
         async function loadExpensesReport() {
             const startDate = document.getElementById('filterStartDate').value;
@@ -541,6 +703,13 @@
             
             const result = await Utils.fetch(`/api/reports/expenses?startDate=${startDate}&endDate=${endDate}`);
             const report = result.report;
+            
+            // Sort expenses by date descending (most recent first)
+            report.expenses.sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+            
+            // Cache data for pagination
+            cachedExpensesData = report;
+            expensesReportPage = 1;
             
             const labels = Object.keys(report.expensesByDay).sort();
             const data = labels.map(date => report.expensesByDay[date]);
@@ -584,23 +753,17 @@
                                         <th>Monto</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    ${report.expenses.length === 0 ? '<tr><td colspan="4" class="text-center">No hay gastos</td></tr>' :
-                                        report.expenses.map(e => `
-                                            <tr>
-                                                <td>${Utils.formatDate(e.date)}</td>
-                                                <td><code>${e.reference}</code></td>
-                                                <td>${Utils.escapeHtml(e.concept)}</td>
-                                                <td><strong class="text-danger">${Utils.formatCurrency(e.amount)}</strong></td>
-                                            </tr>
-                                        `).join('')
-                                    }
+                                <tbody id="expensesTableBody">
                                 </tbody>
                             </table>
                         </div>
+                        <div id="expensesPagination" class="mt-2"></div>
                     </div>
                 </div>
             `;
+            
+            // Render table with pagination
+            renderExpensesTable();
             
             if (labels.length > 0) {
                 const ctx = document.getElementById('expensesReportChart').getContext('2d');
@@ -624,6 +787,30 @@
                 });
             }
         }
+        
+        function renderExpensesTable() {
+            if (!cachedExpensesData) return;
+            
+            const { items: expenses, currentPage, totalPages } = Utils.paginate(cachedExpensesData.expenses, expensesReportPage, ITEMS_PER_PAGE);
+            
+            const tbody = document.getElementById('expensesTableBody');
+            if (!tbody) return;
+            
+            if (cachedExpensesData.expenses.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center">No hay gastos</td></tr>';
+            } else {
+                tbody.innerHTML = expenses.map(e => `
+                    <tr>
+                        <td>${Utils.formatDate(e.date)}</td>
+                        <td><code>${e.reference}</code></td>
+                        <td>${Utils.escapeHtml(e.concept)}</td>
+                        <td><strong class="text-danger">${Utils.formatCurrency(e.amount)}</strong></td>
+                    </tr>
+                `).join('');
+            }
+            
+            Utils.renderPagination('expensesPagination', currentPage, totalPages, 'goToExpensesPage');
+        }
 
         async function loadInventoryReport() {
             const startDate = document.getElementById('filterStartDate').value;
@@ -636,21 +823,42 @@
             const result = await Utils.fetch(url);
             const report = result.report;
             
+            // Sort entries by date descending (most recent first)
+            report.entries.sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+            
+            // Cache data for pagination
+            cachedInventoryData = report;
+            inventoryReportPage = 1;
+            
+            // Separate entries and exits
+            const entries = report.entries.filter(e => (e.type || 'entry') === 'entry');
+            const exits = report.entries.filter(e => e.type === 'exit');
+            
+            const totalEntriesQty = entries.reduce((sum, e) => sum + e.quantity, 0);
+            const totalExitsQty = exits.reduce((sum, e) => sum + e.quantity, 0);
+            
             const content = document.getElementById('reportContent');
             content.innerHTML = `
                 <div class="stats-grid mb-3">
                     <div class="stat-card">
-                        <div class="stat-icon inventory"><i class="fas fa-arrow-up"></i></div>
+                        <div class="stat-icon" style="background: rgba(34, 197, 94, 0.15);"><i class="fas fa-arrow-up" style="color: var(--success);"></i></div>
                         <div class="stat-info">
-                            <h3>${report.stats.totalEntries}</h3>
-                            <p>Unidades Ingresadas</p>
+                            <h3 class="text-success">${Utils.formatQuantity(totalEntriesQty)}</h3>
+                            <p>Unidades Ingresadas (${entries.length})</p>
                         </div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-icon info"><i class="fas fa-clipboard-list"></i></div>
+                        <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15);"><i class="fas fa-arrow-down" style="color: var(--danger);"></i></div>
                         <div class="stat-info">
-                            <h3>${report.stats.entriesCount}</h3>
-                            <p>Entradas Registradas</p>
+                            <h3 class="text-danger">${Utils.formatQuantity(totalExitsQty)}</h3>
+                            <p>Unidades Retiradas (${exits.length})</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon info"><i class="fas fa-balance-scale"></i></div>
+                        <div class="stat-info">
+                            <h3 class="${(totalEntriesQty - totalExitsQty) >= 0 ? 'text-success' : 'text-danger'}">${totalEntriesQty >= totalExitsQty ? '+' : ''}${Utils.formatQuantity(totalEntriesQty - totalExitsQty)}</h3>
+                            <p>Cambio Neto</p>
                         </div>
                     </div>
                 </div>
@@ -689,7 +897,7 @@
                 
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Historial de Entradas</h3>
+                        <h3 class="card-title">Historial de Movimientos</h3>
                     </div>
                     <div class="card-body">
                         <div class="table-container">
@@ -698,29 +906,63 @@
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Referencia</th>
+                                        <th>Tipo</th>
                                         <th>Producto</th>
                                         <th>Cantidad</th>
-                                        <th>Origen</th>
+                                        <th>Origen/Motivo</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    ${report.entries.length === 0 ? '<tr><td colspan="5" class="text-center">No hay entradas</td></tr>' :
-                                        report.entries.map(e => `
-                                            <tr>
-                                                <td>${Utils.formatDate(e.date)}</td>
-                                                <td><code>${e.reference}</code></td>
-                                                <td>${Utils.escapeHtml(e.productName)}</td>
-                                                <td><span class="badge badge-success">+${Utils.formatQuantity(e.quantity)}</span></td>
-                                                <td>${Utils.escapeHtml(e.origin)}</td>
-                                            </tr>
-                                        `).join('')
-                                    }
+                                <tbody id="inventoryTableBody">
                                 </tbody>
                             </table>
                         </div>
+                        <div id="inventoryPagination" class="mt-2"></div>
                     </div>
                 </div>
             `;
+            
+            // Render table with pagination
+            renderInventoryTable();
+        }
+        
+        function renderInventoryTable() {
+            if (!cachedInventoryData) return;
+            
+            const EXIT_REASONS = {
+                waste: 'Desecho',
+                adjustment: 'Ajuste de inventario',
+                gift_rodrigo: 'Obsequio Rodrigo'
+            };
+            
+            const { items: entries, currentPage, totalPages } = Utils.paginate(cachedInventoryData.entries, inventoryReportPage, ITEMS_PER_PAGE);
+            
+            const tbody = document.getElementById('inventoryTableBody');
+            if (!tbody) return;
+            
+            if (cachedInventoryData.entries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">No hay movimientos</td></tr>';
+            } else {
+                tbody.innerHTML = entries.map(e => {
+                    const isEntry = (e.type || 'entry') === 'entry';
+                    const typeClass = isEntry ? 'badge-success' : 'badge-danger';
+                    const typeLabel = isEntry ? 'Entrada' : 'Salida';
+                    const quantityPrefix = isEntry ? '+' : '-';
+                    const originOrReason = isEntry ? Utils.escapeHtml(e.origin || '') : (EXIT_REASONS[e.reason] || e.reason || '');
+                    
+                    return `
+                        <tr>
+                            <td>${Utils.formatDate(e.date)}</td>
+                            <td><code>${e.reference}</code></td>
+                            <td><span class="badge ${typeClass}">${typeLabel}</span></td>
+                            <td>${Utils.escapeHtml(e.productName)}</td>
+                            <td><span class="badge ${typeClass}">${quantityPrefix}${Utils.formatQuantity(e.quantity)}</span></td>
+                            <td>${originOrReason}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+            
+            Utils.renderPagination('inventoryPagination', currentPage, totalPages, 'goToInventoryPage');
         }
 
         async function loadCreditsReport() {
@@ -747,13 +989,17 @@
             }
             
             // Sort by date descending
-            creditSales.sort((a, b) => b.date.localeCompare(a.date));
+            creditSales.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
             
             // Calculate totals
             const totalPending = creditSales.reduce((sum, s) => sum + (s.pendingAmount || 0), 0);
             const totalSalesValue = creditSales.reduce((sum, s) => sum + s.total, 0);
             const totalPaid = creditSales.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
             const pendingCount = creditSales.filter(s => s.status === 'pending').length;
+            
+            // Cache data for pagination
+            cachedCreditsData = { creditSales, creditStatus };
+            creditsReportPage = 1;
             
             const content = document.getElementById('reportContent');
             content.innerHTML = `
@@ -807,31 +1053,49 @@
                                         <th>Acc.</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    ${creditSales.length === 0 ? '<tr><td colspan="8" class="text-center">No hay créditos en este período</td></tr>' :
-                                        creditSales.map(s => `
-                                            <tr>
-                                                <td>${Utils.formatDate(s.date)}</td>
-                                                <td><code>${s.reference.substring(0, 8)}...</code></td>
-                                                <td>${Utils.escapeHtml(s.clientName)}</td>
-                                                <td>${Utils.formatCurrency(s.total)}</td>
-                                                <td class="text-success">${Utils.formatCurrency(s.paidAmount || 0)}</td>
-                                                <td><strong class="${s.pendingAmount > 0 ? 'text-warning' : 'text-success'}">${Utils.formatCurrency(s.pendingAmount || 0)}</strong></td>
-                                                <td>${s.status === 'pending' ? '<span class="badge badge-warning">Pendiente</span>' : '<span class="badge badge-success">Pagado</span>'}</td>
-                                                <td>
-                                                    <a href="/sales" class="btn btn-sm btn-info" title="Ver en ventas">
-                                                        <i class="fas fa-external-link-alt"></i>
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                        `).join('')
-                                    }
+                                <tbody id="creditsTableBody">
                                 </tbody>
                             </table>
                         </div>
+                        <div id="creditsPagination" class="mt-2"></div>
                     </div>
                 </div>
             `;
+            
+            // Render table with pagination
+            renderCreditsTable();
+        }
+        
+        function renderCreditsTable() {
+            if (!cachedCreditsData) return;
+            
+            const { items: creditSales, currentPage, totalPages } = Utils.paginate(cachedCreditsData.creditSales, creditsReportPage, ITEMS_PER_PAGE);
+            
+            const tbody = document.getElementById('creditsTableBody');
+            if (!tbody) return;
+            
+            if (cachedCreditsData.creditSales.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">No hay créditos en este período</td></tr>';
+            } else {
+                tbody.innerHTML = creditSales.map(s => `
+                    <tr>
+                        <td>${Utils.formatDate(s.date)}</td>
+                        <td><code>${s.reference.substring(0, 8)}...</code></td>
+                        <td>${Utils.escapeHtml(s.clientName)}</td>
+                        <td>${Utils.formatCurrency(s.total)}</td>
+                        <td class="text-success">${Utils.formatCurrency(s.paidAmount || 0)}</td>
+                        <td><strong class="${s.pendingAmount > 0 ? 'text-warning' : 'text-success'}">${Utils.formatCurrency(s.pendingAmount || 0)}</strong></td>
+                        <td>${s.status === 'pending' ? '<span class="badge badge-warning">Pendiente</span>' : '<span class="badge badge-success">Pagado</span>'}</td>
+                        <td>
+                            <a href="/sales" class="btn btn-sm btn-info" title="Ver en ventas">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+            
+            Utils.renderPagination('creditsPagination', currentPage, totalPages, 'goToCreditsPage');
         }
 
         async function loadCashReport() {
@@ -840,6 +1104,13 @@
             
             const result = await Utils.fetch(`/api/reports/cash?startDate=${startDate}&endDate=${endDate}`);
             const report = result.report;
+            
+            // Sort registers by date descending (most recent first)
+            report.registers.sort((a, b) => b.date.localeCompare(a.date));
+            
+            // Cache data for pagination
+            cachedCashData = report;
+            cashReportPage = 1;
             
             const content = document.getElementById('reportContent');
             content.innerHTML = `
@@ -886,25 +1157,43 @@
                                         <th>Final</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    ${report.registers.length === 0 ? '<tr><td colspan="6" class="text-center">No hay registros</td></tr>' :
-                                        report.registers.map(r => `
-                                            <tr>
-                                                <td>${Utils.formatDate(r.date)}</td>
-                                                <td><code>${r.reference}</code></td>
-                                                <td>${Utils.formatCurrency(r.initialAmount)}</td>
-                                                <td class="text-success">${Utils.formatCurrency(r.totalSales)}</td>
-                                                <td class="text-danger">${Utils.formatCurrency(r.totalExpenses)}</td>
-                                                <td><strong>${Utils.formatCurrency(r.expectedAmount)}</strong></td>
-                                            </tr>
-                                        `).join('')
-                                    }
+                                <tbody id="cashTableBody">
                                 </tbody>
                             </table>
                         </div>
+                        <div id="cashPagination" class="mt-2"></div>
                     </div>
                 </div>
             `;
+            
+            // Render table with pagination
+            renderCashTable();
+        }
+        
+        function renderCashTable() {
+            if (!cachedCashData) return;
+            
+            const { items: registers, currentPage, totalPages } = Utils.paginate(cachedCashData.registers, cashReportPage, ITEMS_PER_PAGE);
+            
+            const tbody = document.getElementById('cashTableBody');
+            if (!tbody) return;
+            
+            if (cachedCashData.registers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">No hay registros</td></tr>';
+            } else {
+                tbody.innerHTML = registers.map(r => `
+                    <tr>
+                        <td>${Utils.formatDate(r.date)}</td>
+                        <td><code>${r.reference}</code></td>
+                        <td>${Utils.formatCurrency(r.initialAmount)}</td>
+                        <td class="text-success">${Utils.formatCurrency(r.totalSales)}</td>
+                        <td class="text-danger">${Utils.formatCurrency(r.totalExpenses)}</td>
+                        <td><strong>${Utils.formatCurrency(r.expectedAmount)}</strong></td>
+                    </tr>
+                `).join('');
+            }
+            
+            Utils.renderPagination('cashPagination', currentPage, totalPages, 'goToCashPage');
         }
 
         function toggleSidebar() {

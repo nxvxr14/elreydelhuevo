@@ -155,6 +155,9 @@ const SaleService = {
         // Payment method: 'cash', 'transfer', 'credit'
         const paymentMethod = saleData.paymentMethod || 'cash';
         
+        // Transfer type: 'nequi', 'bancolombia', 'davivienda' (only if paymentMethod is 'transfer')
+        const transferType = paymentMethod === 'transfer' ? (saleData.transferType || 'nequi') : null;
+        
         // For credit sales, calculate paid and pending amounts
         let paidAmount = Math.round(total);
         let pendingAmount = 0;
@@ -164,6 +167,9 @@ const SaleService = {
         if (paymentMethod === 'credit') {
             // Initial payment for credit (can be 0)
             const initialPayment = Math.round(parseFloat(saleData.initialPayment || 0));
+            const initialPaymentMethod = saleData.initialPaymentMethod || 'cash';
+            const initialTransferType = initialPaymentMethod === 'transfer' ? (saleData.initialTransferType || 'nequi') : null;
+            
             paidAmount = initialPayment;
             pendingAmount = Math.round(total) - paidAmount;
             status = pendingAmount > 0 ? 'pending' : 'paid';
@@ -172,6 +178,8 @@ const SaleService = {
                 payments.push({
                     date: saleData.date || db.getCurrentDate(),
                     amount: initialPayment,
+                    paymentMethod: initialPaymentMethod,
+                    transferType: initialTransferType,
                     note: 'Abono inicial'
                 });
             }
@@ -189,6 +197,7 @@ const SaleService = {
             date: saleData.date || db.getCurrentDate(),
             source: source, // 'pos' o 'dashboard'
             paymentMethod: paymentMethod, // 'cash', 'transfer', 'credit'
+            transferType: transferType, // 'nequi', 'bancolombia', 'davivienda' or null
             paidAmount: paidAmount,
             pendingAmount: pendingAmount,
             status: status, // 'paid' o 'pending'
@@ -333,8 +342,10 @@ const SaleService = {
      * @param {string} saleId - ID de la venta
      * @param {number} amount - Monto del abono
      * @param {string} note - Nota del abono
+     * @param {string} paymentMethod - Método de pago del abono: 'cash' o 'transfer'
+     * @param {string} transferType - Tipo de transferencia: 'nequi', 'bancolombia', 'davivienda'
      */
-    addPayment(saleId, amount, note = '') {
+    addPayment(saleId, amount, note = '', paymentMethod = 'cash', transferType = null) {
         const data = db.readJSON('sales.json');
         if (!data) {
             return { success: false, message: 'Error al acceder a la base de datos' };
@@ -367,10 +378,20 @@ const SaleService = {
             return { success: false, message: `El abono excede el saldo pendiente (${sale.pendingAmount})` };
         }
         
+        // Validate payment method
+        const validMethods = ['cash', 'transfer'];
+        const method = validMethods.includes(paymentMethod) ? paymentMethod : 'cash';
+        
+        // Validate transfer type
+        const validTransferTypes = ['nequi', 'bancolombia', 'davivienda'];
+        const tType = method === 'transfer' && validTransferTypes.includes(transferType) ? transferType : null;
+        
         // Add payment
         const payment = {
             date: db.getCurrentDate(),
             amount: paymentAmount,
+            paymentMethod: method,
+            transferType: tType,
             note: note ? note.substring(0, 200) : ''
         };
         

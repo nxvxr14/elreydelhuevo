@@ -71,6 +71,7 @@ const ProductService = {
     
     /**
      * Actualiza un producto
+     * NOTA: El stock NO se puede modificar desde aquí. Solo desde inventario (entradas/salidas).
      */
     update(id, productData) {
         const data = db.readJSON('products.json');
@@ -92,15 +93,10 @@ const ProductService = {
             return { success: false, message: 'El precio debe ser un número positivo' };
         }
         
-        if (productData.stock !== undefined && !db.isPositiveNumber(productData.stock)) {
-            return { success: false, message: 'El stock debe ser un número positivo' };
-        }
+        // NOTA: Ignorar cambios de stock en la edición de producto
+        // El stock solo se modifica a través de inventario (entradas/salidas)
         
-        if (productData.stock !== undefined && !db.isValidQuantity(productData.stock)) {
-            return { success: false, message: 'El stock solo puede tener .5 como decimal (ej: 10, 10.5)' };
-        }
-        
-        // Actualizar campos
+        // Actualizar campos (excepto stock)
         if (productData.name !== undefined) {
             data.products[index].name = productData.name.trim();
         }
@@ -110,9 +106,7 @@ const ProductService = {
         if (productData.price !== undefined) {
             data.products[index].price = parseFloat(productData.price);
         }
-        if (productData.stock !== undefined) {
-            data.products[index].stock = parseFloat(productData.stock);
-        }
+        // Stock NO se actualiza aquí - solo desde inventario
         
         data.products[index].updatedAt = db.getCurrentDateTime();
         

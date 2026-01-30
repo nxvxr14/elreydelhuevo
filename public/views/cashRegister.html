@@ -62,6 +62,14 @@
             <!-- Filters -->
             <div class="filters-bar">
                 <div class="filter-group">
+                    <label for="filterStatus">Estado:</label>
+                    <select id="filterStatus" class="form-control" onchange="loadHistory()">
+                        <option value="">Todas</option>
+                        <option value="open">Abiertas</option>
+                        <option value="closed">Cerradas</option>
+                    </select>
+                </div>
+                <div class="filter-group">
                     <label for="filterStartDate">Desde:</label>
                     <input type="date" id="filterStartDate" class="form-control" onchange="loadHistory()">
                 </div>
@@ -178,9 +186,16 @@
                 Utils.showLoading();
                 const startDate = document.getElementById('filterStartDate').value;
                 const endDate = document.getElementById('filterEndDate').value;
+                const status = document.getElementById('filterStatus').value;
                 
                 const result = await Utils.fetch(`/api/cash-register?startDate=${startDate}&endDate=${endDate}`);
                 cashRegisters = result.registers.reverse(); // Últimos primero
+                
+                // Filter by status client-side
+                if (status) {
+                    cashRegisters = cashRegisters.filter(r => r.status === status);
+                }
+                
                 currentPage = 1;
                 renderHistory();
             } catch (error) {

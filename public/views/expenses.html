@@ -58,6 +58,10 @@
                     <label for="filterEndDate">Hasta:</label>
                     <input type="date" id="filterEndDate" class="form-control" onchange="loadExpenses()">
                 </div>
+                <div class="filter-group">
+                    <label for="filterSearch">Buscar concepto:</label>
+                    <input type="text" id="filterSearch" class="form-control" placeholder="Buscar..." oninput="filterExpenses()">
+                </div>
             </div>
 
             <div class="card">
@@ -135,6 +139,7 @@
     <script src="/js/utils.js"></script>
     <script src="/js/auth.js"></script>
     <script>
+        let allExpenses = [];
         let expenses = [];
         let currentPage = 1;
 
@@ -153,14 +158,26 @@
                 const endDate = document.getElementById('filterEndDate').value;
                 
                 const result = await Utils.fetch(`/api/expenses?startDate=${startDate}&endDate=${endDate}`);
-                expenses = result.expenses.reverse(); // Últimos primero
-                currentPage = 1;
-                renderExpenses();
+                allExpenses = result.expenses.reverse(); // Últimos primero
+                filterExpenses();
             } catch (error) {
                 Utils.showToast('Error al cargar los gastos', 'danger');
             } finally {
                 Utils.hideLoading();
             }
+        }
+        
+        function filterExpenses() {
+            const search = document.getElementById('filterSearch').value.toLowerCase().trim();
+            
+            if (search) {
+                expenses = allExpenses.filter(e => e.concept.toLowerCase().includes(search));
+            } else {
+                expenses = [...allExpenses];
+            }
+            
+            currentPage = 1;
+            renderExpenses();
         }
 
         function renderExpenses() {

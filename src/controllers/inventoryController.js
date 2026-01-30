@@ -5,15 +5,28 @@ const InventoryService = require('../services/inventoryService');
  */
 const InventoryController = {
     /**
-     * Obtiene todas las entradas de inventario
+     * Obtiene los motivos de salida disponibles
+     */
+    getExitReasons(req, res) {
+        const reasons = InventoryService.getExitReasons();
+        return res.json({
+            success: true,
+            reasons
+        });
+    },
+    
+    /**
+     * Obtiene todos los movimientos de inventario
      */
     getAll(req, res) {
-        const { startDate, endDate, productId } = req.query;
+        const { startDate, endDate, productId, type, reason } = req.query;
         
         const filters = {};
         if (startDate) filters.startDate = startDate;
         if (endDate) filters.endDate = endDate;
         if (productId) filters.productId = productId;
+        if (type) filters.type = type;
+        if (reason) filters.reason = reason;
         
         const entries = InventoryService.getFiltered(filters);
         

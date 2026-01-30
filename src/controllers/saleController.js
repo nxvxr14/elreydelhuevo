@@ -137,7 +137,7 @@ const SaleController = {
      */
     addPayment(req, res) {
         const { id } = req.params;
-        const { amount, note } = req.body;
+        const { amount, note, paymentMethod, transferType } = req.body;
         
         if (!amount) {
             return res.status(400).json({
@@ -146,7 +146,7 @@ const SaleController = {
             });
         }
         
-        const result = SaleService.addPayment(id, amount, note);
+        const result = SaleService.addPayment(id, amount, note, paymentMethod, transferType);
         
         if (!result.success) {
             return res.status(400).json(result);

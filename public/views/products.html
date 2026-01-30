@@ -154,10 +154,13 @@
                                placeholder="0" required>
                     </div>
                     
-                    <div class="form-group">
+                    <div class="form-group" id="stockGroup">
                         <label for="productStock">Stock Inicial</label>
                         <input type="text" id="productStock" class="form-control" 
                                placeholder="0">
+                        <small id="stockHelpText" class="form-text text-muted" style="display: none; color: var(--text-secondary); font-size: 0.85em; margin-top: 5px;">
+                            <i class="fas fa-info-circle"></i> El stock solo se puede modificar desde <a href="/inventory" style="color: var(--primary);">Inventario</a> (entradas/salidas).
+                        </small>
                     </div>
                 </form>
             </div>

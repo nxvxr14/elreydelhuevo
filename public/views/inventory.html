@@ -41,15 +41,26 @@
 
         <main class="main-content">
             <div class="page-header">
-                <h1 class="page-title">Inventario - Entradas</h1>
+                <h1 class="page-title">Inventario</h1>
                 <div class="page-actions">
-                    <button class="btn btn-primary" onclick="showEntryModal()">
+                    <button class="btn btn-success" onclick="showEntryModal()">
                         <i class="fas fa-plus"></i> Nueva Entrada
+                    </button>
+                    <button class="btn btn-danger" onclick="showExitModal()">
+                        <i class="fas fa-minus"></i> Nueva Salida
                     </button>
                 </div>
             </div>
 
             <div class="filters-bar">
+                <div class="filter-group">
+                    <label for="filterType">Tipo:</label>
+                    <select id="filterType" class="form-control" onchange="loadEntries()">
+                        <option value="">Todos</option>
+                        <option value="entry">Entradas</option>
+                        <option value="exit">Salidas</option>
+                    </select>
+                </div>
                 <div class="filter-group">
                     <label for="filterStartDate">Desde:</label>
                     <input type="date" id="filterStartDate" class="form-control" onchange="loadEntries()">
@@ -74,14 +85,15 @@
                                 <tr>
                                     <th>Fecha</th>
                                     <th>Referencia</th>
+                                    <th>Tipo</th>
                                     <th>Producto</th>
                                     <th>Cantidad</th>
-                                    <th>Origen</th>
+                                    <th>Origen/Motivo</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="entriesTable">
-                                <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                                <tr><td colspan="7" class="text-center">Cargando...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -123,7 +135,50 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeEntryModal()">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveEntry()">Guardar</button>
+                <button class="btn btn-success" onclick="saveEntry()">Guardar Entrada</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exit Modal -->
+    <div class="modal-overlay" id="exitModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Nueva Salida de Inventario</h3>
+                <button class="modal-close" onclick="closeExitModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="exitForm" onsubmit="event.preventDefault(); saveExit();">
+                    <div class="form-group">
+                        <label for="exitProduct">Producto *</label>
+                        <select id="exitProduct" class="form-control" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="exitQuantity">Cantidad *</label>
+                        <input type="text" id="exitQuantity" class="form-control" placeholder="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="exitReason">Motivo *</label>
+                        <select id="exitReason" class="form-control" required>
+                            <option value="">Seleccione un motivo</option>
+                            <option value="waste">Desecho</option>
+                            <option value="adjustment">Ajuste de inventario</option>
+                            <option value="gift_rodrigo">Obsequio Rodrigo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="exitDate">Fecha</label>
+                        <input type="date" id="exitDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="exitNote">Nota (máx. 200 caracteres)</label>
+                        <textarea id="exitNote" class="form-control" rows="2" maxlength="200"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeExitModal()">Cancelar</button>
+                <button class="btn btn-danger" onclick="saveExit()">Guardar Salida</button>
             </div>
         </div>
     </div>
@@ -132,7 +187,7 @@
     <div class="modal-overlay" id="entryDetailModal">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title">Detalle de Entrada</h3>
+                <h3 class="modal-title">Detalle del Movimiento</h3>
                 <button class="modal-close" onclick="closeEntryDetailModal()">&times;</button>
             </div>
             <div class="modal-body" id="entryDetailContent"></div>
@@ -148,11 +203,18 @@
         let entries = [];
         let products = [];
         let currentPage = 1;
+        
+        const EXIT_REASONS = {
+            waste: 'Desecho',
+            adjustment: 'Ajuste de inventario',
+            gift_rodrigo: 'Obsequio Rodrigo'
+        };
 
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('filterStartDate').value = Utils.getFirstDayOfMonth();
             document.getElementById('filterEndDate').value = Utils.getCurrentDate();
             document.getElementById('entryDate').value = Utils.getCurrentDate();
+            document.getElementById('exitDate').value = Utils.getCurrentDate();
             
             loadProducts();
             loadEntries();
@@ -165,10 +227,12 @@
                 
                 const filterSelect = document.getElementById('filterProduct');
                 const entrySelect = document.getElementById('entryProduct');
+                const exitSelect = document.getElementById('exitProduct');
                 
                 products.forEach(p => {
                     filterSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatQuantity(p.stock)})</option>`;
                     entrySelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
+                    exitSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatQuantity(p.stock)})</option>`;
                 });
             } catch (error) {
                 console.error('Error loading products:', error);
@@ -181,16 +245,18 @@
                 const startDate = document.getElementById('filterStartDate').value;
                 const endDate = document.getElementById('filterEndDate').value;
                 const productId = document.getElementById('filterProduct').value;
+                const type = document.getElementById('filterType').value;
                 
                 let url = `/api/inventory?startDate=${startDate}&endDate=${endDate}`;
                 if (productId) url += `&productId=${productId}`;
+                if (type) url += `&type=${type}`;
                 
                 const result = await Utils.fetch(url);
                 entries = result.entries.reverse(); // Últimos primero
                 currentPage = 1;
                 renderEntries();
             } catch (error) {
-                Utils.showToast('Error al cargar las entradas', 'danger');
+                Utils.showToast('Error al cargar los movimientos', 'danger');
             } finally {
                 Utils.hideLoading();
             }
@@ -200,7 +266,7 @@
             const table = document.getElementById('entriesTable');
             
             if (entries.length === 0) {
-                table.innerHTML = '<tr><td colspan="6" class="text-center"><div class="empty-state"><i class="fas fa-warehouse"></i><h3>No hay entradas</h3></div></td></tr>';
+                table.innerHTML = '<tr><td colspan="7" class="text-center"><div class="empty-state"><i class="fas fa-warehouse"></i><h3>No hay movimientos</h3></div></td></tr>';
                 document.getElementById('entriesPagination').innerHTML = '';
                 return;
             }
@@ -208,19 +274,30 @@
             const { items, currentPage: page, totalPages } = Utils.paginate(entries, currentPage, 10);
             currentPage = page;
             
-            table.innerHTML = items.map(entry => `
-                <tr>
-                    <td>${Utils.formatDate(entry.date)}</td>
-                    <td><code>${entry.reference}</code></td>
-                    <td>${Utils.escapeHtml(entry.productName)}</td>
-                    <td><span class="badge badge-success">+${Utils.formatQuantity(entry.quantity)}</span></td>
-                    <td>${Utils.escapeHtml(entry.origin)}</td>
-                    <td class="table-actions">
-                        <button class="btn btn-sm btn-info" onclick="viewEntryDetail('${entry.id}')"><i class="fas fa-eye"></i></button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteEntry('${entry.id}')"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('');
+            table.innerHTML = items.map(entry => {
+                const isEntry = (entry.type || 'entry') === 'entry';
+                const typeClass = isEntry ? 'badge-success' : 'badge-danger';
+                const typeLabel = isEntry ? 'Entrada' : 'Salida';
+                const quantityPrefix = isEntry ? '+' : '-';
+                const originOrReason = isEntry 
+                    ? Utils.escapeHtml(entry.origin || '') 
+                    : (EXIT_REASONS[entry.reason] || entry.reason || '');
+                
+                return `
+                    <tr>
+                        <td>${Utils.formatDate(entry.date)}</td>
+                        <td><code>${entry.reference}</code></td>
+                        <td><span class="badge ${typeClass}">${typeLabel}</span></td>
+                        <td>${Utils.escapeHtml(entry.productName)}</td>
+                        <td><span class="badge ${typeClass}">${quantityPrefix}${Utils.formatQuantity(entry.quantity)}</span></td>
+                        <td>${originOrReason}</td>
+                        <td class="table-actions">
+                            <button class="btn btn-sm btn-info" onclick="viewEntryDetail('${entry.id}')"><i class="fas fa-eye"></i></button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteEntry('${entry.id}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
             
             Utils.renderPagination('entriesPagination', currentPage, totalPages, 'goToPage');
         }
@@ -230,6 +307,7 @@
             renderEntries();
         }
 
+        // ==================== Entry Modal ====================
         function showEntryModal() {
             document.getElementById('entryForm').reset();
             document.getElementById('entryDate').value = Utils.getCurrentDate();
@@ -248,6 +326,7 @@
             const quantityStr = document.getElementById('entryQuantity').value;
             const quantity = Utils.parseQuantity(quantityStr);
             const data = {
+                type: 'entry',
                 productId: document.getElementById('entryProduct').value,
                 quantity: quantity,
                 origin: document.getElementById('entryOrigin').value,
@@ -275,19 +354,82 @@
                 
                 Utils.showToast('Entrada registrada', 'success');
                 closeEntryModal();
-                loadEntries();
-                
-                // Reload products to update stock display
-                const filterSelect = document.getElementById('filterProduct');
-                const entrySelect = document.getElementById('entryProduct');
-                filterSelect.innerHTML = '<option value="">Todos</option>';
-                entrySelect.innerHTML = '';
-                loadProducts();
+                await refreshAll();
             } catch (error) {
                 Utils.showToast(error.message, 'danger');
             } finally {
                 Utils.hideLoading();
             }
+        }
+
+        // ==================== Exit Modal ====================
+        function showExitModal() {
+            document.getElementById('exitForm').reset();
+            document.getElementById('exitDate').value = Utils.getCurrentDate();
+            
+            const quantityInput = document.getElementById('exitQuantity');
+            Utils.setupQuantityInput(quantityInput);
+            
+            document.getElementById('exitModal').classList.add('active');
+        }
+
+        function closeExitModal() {
+            document.getElementById('exitModal').classList.remove('active');
+        }
+
+        async function saveExit() {
+            const quantityStr = document.getElementById('exitQuantity').value;
+            const quantity = Utils.parseQuantity(quantityStr);
+            const data = {
+                type: 'exit',
+                productId: document.getElementById('exitProduct').value,
+                quantity: quantity,
+                reason: document.getElementById('exitReason').value,
+                date: document.getElementById('exitDate').value,
+                note: document.getElementById('exitNote').value
+            };
+            
+            if (!data.productId || !quantityStr || !data.reason) {
+                Utils.showToast('Complete los campos requeridos', 'warning');
+                return;
+            }
+            
+            if (!Utils.isValidQuantity(quantity) || quantity <= 0) {
+                Utils.showToast('La cantidad debe ser mayor a 0 y solo puede tener ,5 como decimal', 'warning');
+                return;
+            }
+            
+            try {
+                Utils.showLoading();
+                
+                await Utils.fetch('/api/inventory', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                
+                Utils.showToast('Salida registrada', 'success');
+                closeExitModal();
+                await refreshAll();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        // ==================== Common Functions ====================
+        async function refreshAll() {
+            // Reload products to update stock display
+            const filterSelect = document.getElementById('filterProduct');
+            const entrySelect = document.getElementById('entryProduct');
+            const exitSelect = document.getElementById('exitProduct');
+            
+            filterSelect.innerHTML = '<option value="">Todos</option>';
+            entrySelect.innerHTML = '';
+            exitSelect.innerHTML = '';
+            
+            await loadProducts();
+            await loadEntries();
         }
 
         async function viewEntryDetail(id) {
@@ -296,16 +438,27 @@
                 const result = await Utils.fetch(`/api/inventory/${id}`);
                 const entry = result.entry;
                 const product = products.find(p => p.id === entry.productId);
+                const isEntry = (entry.type || 'entry') === 'entry';
                 
-                document.getElementById('entryDetailContent').innerHTML = `
+                let detailHtml = `
                     <p><strong>Referencia:</strong> <code>${entry.reference}</code></p>
+                    <p><strong>Tipo:</strong> <span class="badge ${isEntry ? 'badge-success' : 'badge-danger'}">${isEntry ? 'Entrada' : 'Salida'}</span></p>
                     <p><strong>Fecha:</strong> ${Utils.formatDate(entry.date)}</p>
                     <p><strong>Producto:</strong> ${product ? Utils.escapeHtml(product.name) : 'Producto eliminado'}</p>
-                    <p><strong>Cantidad:</strong> <span class="badge badge-success">+${Utils.formatQuantity(entry.quantity)}</span></p>
-                    <p><strong>Origen:</strong> ${Utils.escapeHtml(entry.origin)}</p>
-                    ${entry.note ? `<p><strong>Nota:</strong> ${Utils.escapeHtml(entry.note)}</p>` : ''}
+                    <p><strong>Cantidad:</strong> <span class="badge ${isEntry ? 'badge-success' : 'badge-danger'}">${isEntry ? '+' : '-'}${Utils.formatQuantity(entry.quantity)}</span></p>
                 `;
                 
+                if (isEntry) {
+                    detailHtml += `<p><strong>Origen:</strong> ${Utils.escapeHtml(entry.origin || '')}</p>`;
+                } else {
+                    detailHtml += `<p><strong>Motivo:</strong> ${EXIT_REASONS[entry.reason] || entry.reason}</p>`;
+                }
+                
+                if (entry.note) {
+                    detailHtml += `<p><strong>Nota:</strong> ${Utils.escapeHtml(entry.note)}</p>`;
+                }
+                
+                document.getElementById('entryDetailContent').innerHTML = detailHtml;
                 document.getElementById('entryDetailModal').classList.add('active');
             } catch (error) {
                 Utils.showToast('Error al cargar el detalle', 'danger');
@@ -319,7 +472,13 @@
         }
 
         async function deleteEntry(id) {
-            const confirmed = await Utils.confirm('¿Eliminar esta entrada? Se revertirá el stock del producto.');
+            const entry = entries.find(e => e.id === id);
+            const isEntry = entry && (entry.type || 'entry') === 'entry';
+            const message = isEntry 
+                ? '¿Eliminar esta entrada? Se restará la cantidad del stock del producto.'
+                : '¿Eliminar esta salida? Se sumará la cantidad de vuelta al stock del producto.';
+            
+            const confirmed = await Utils.confirm(message);
             if (!confirmed) return;
             
             const verified = await Utils.promptPassword('Ingrese la contraseña para eliminar');
@@ -328,8 +487,8 @@
             try {
                 Utils.showLoading();
                 await Utils.fetch(`/api/inventory/${id}`, { method: 'DELETE' });
-                Utils.showToast('Entrada eliminada', 'success');
-                loadEntries();
+                Utils.showToast('Movimiento eliminado', 'success');
+                await refreshAll();
             } catch (error) {
                 Utils.showToast(error.message, 'danger');
             } finally {

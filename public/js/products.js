@@ -131,20 +131,39 @@ function showProductModal(product = null) {
     
     const priceInput = document.getElementById('productPrice');
     const stockInput = document.getElementById('productStock');
+    const stockLabel = document.querySelector('label[for="productStock"]');
+    const stockHelpText = document.getElementById('stockHelpText');
+    
     Utils.setupMoneyInput(priceInput);
     Utils.setupQuantityInput(stockInput);
     
     if (product) {
+        // Modo edición: deshabilitar campo de stock
         title.textContent = 'Editar Producto';
         document.getElementById('productId').value = product.id;
         document.getElementById('productName').value = product.name;
         document.getElementById('productCategory').value = product.categoryId;
         priceInput.value = Utils.formatNumber(product.price);
         stockInput.value = Utils.formatQuantity(product.stock);
-        originalStock = product.stock; // Guardar stock original
+        originalStock = product.stock;
+        
+        // Deshabilitar stock en edición
+        stockInput.disabled = true;
+        stockInput.style.backgroundColor = 'var(--bg-dark)';
+        stockInput.style.cursor = 'not-allowed';
+        stockLabel.textContent = 'Stock Actual';
+        stockHelpText.style.display = 'block';
     } else {
+        // Modo creación: habilitar campo de stock
         title.textContent = 'Nuevo Producto';
         stockInput.value = '0';
+        
+        // Habilitar stock en creación
+        stockInput.disabled = false;
+        stockInput.style.backgroundColor = '';
+        stockInput.style.cursor = '';
+        stockLabel.textContent = 'Stock Inicial';
+        stockHelpText.style.display = 'none';
     }
     
     modal.classList.add('active');
@@ -160,12 +179,17 @@ async function saveProduct() {
     const newStock = Utils.parseQuantity(stockStr);
     const priceStr = document.getElementById('productPrice').value;
     const price = Utils.parseNumber(priceStr);
+    
     const data = {
         name: document.getElementById('productName').value,
         categoryId: document.getElementById('productCategory').value,
-        price: price,
-        stock: newStock
+        price: price
     };
+    
+    // Solo incluir stock si es creación (no edición)
+    if (!id) {
+        data.stock = newStock;
+    }
     
     if (!data.name || !priceStr) {
         Utils.showToast('Complete los campos requeridos', 'warning');
@@ -177,9 +201,12 @@ async function saveProduct() {
         return;
     }
     
-    if (!Utils.isValidQuantity(newStock) || newStock < 0) {
-        Utils.showToast('El stock no puede ser negativo y solo puede tener ,5 como decimal', 'warning');
-        return;
+    // Validar stock solo en creación
+    if (!id) {
+        if (!Utils.isValidQuantity(newStock) || newStock < 0) {
+            Utils.showToast('El stock no puede ser negativo y solo puede tener ,5 como decimal', 'warning');
+            return;
+        }
     }
     
     try {
@@ -187,12 +214,7 @@ async function saveProduct() {
         
         if (id) {
             // Editar requiere contraseña
-            const stockChanged = originalStock !== null && newStock !== originalStock;
-            const message = stockChanged 
-                ? 'Ingrese la contraseña para editar el producto (incluye cambio de stock)'
-                : 'Ingrese la contraseña para editar el producto';
-            
-            const verified = await Utils.promptPassword(message);
+            const verified = await Utils.promptPassword('Ingrese la contraseña para editar el producto');
             if (!verified) {
                 Utils.hideLoading();
                 return;
