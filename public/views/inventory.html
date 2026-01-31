@@ -162,6 +162,7 @@
                         <select id="exitReason" class="form-control" required>
                             <option value="">Seleccione un motivo</option>
                             <option value="waste">Desecho</option>
+                            <option value="cracked">Picado</option>
                             <option value="adjustment">Ajuste de inventario</option>
                             <option value="gift_rodrigo">Obsequio Rodrigo</option>
                         </select>
@@ -206,6 +207,7 @@
         
         const EXIT_REASONS = {
             waste: 'Desecho',
+            cracked: 'Picado',
             adjustment: 'Ajuste de inventario',
             gift_rodrigo: 'Obsequio Rodrigo'
         };
@@ -285,7 +287,7 @@
                 
                 return `
                     <tr>
-                        <td>${Utils.formatDate(entry.date)}</td>
+                        <td>${Utils.formatDateShort(entry.date)}</td>
                         <td><code>${entry.reference}</code></td>
                         <td><span class="badge ${typeClass}">${typeLabel}</span></td>
                         <td>${Utils.escapeHtml(entry.productName)}</td>
@@ -443,7 +445,7 @@
                 let detailHtml = `
                     <p><strong>Referencia:</strong> <code>${entry.reference}</code></p>
                     <p><strong>Tipo:</strong> <span class="badge ${isEntry ? 'badge-success' : 'badge-danger'}">${isEntry ? 'Entrada' : 'Salida'}</span></p>
-                    <p><strong>Fecha:</strong> ${Utils.formatDate(entry.date)}</p>
+                    <p><strong>Fecha:</strong> ${Utils.formatDateShort(entry.date)}</p>
                     <p><strong>Producto:</strong> ${product ? Utils.escapeHtml(product.name) : 'Producto eliminado'}</p>
                     <p><strong>Cantidad:</strong> <span class="badge ${isEntry ? 'badge-success' : 'badge-danger'}">${isEntry ? '+' : '-'}${Utils.formatQuantity(entry.quantity)}</span></p>
                 `;

@@ -65,14 +65,12 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Nombre</th>
-                                    <th>Teléfono</th>
-                                    <th>Total Comprado</th>
-                                    <th>Cantidad Total</th>
+                                    <th>Notas</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="clientsTable">
-                                <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                                <tr><td colspan="4" class="text-center">Cargando...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -169,7 +167,7 @@
             const table = document.getElementById('clientsTable');
             
             if (filteredClients.length === 0) {
-                table.innerHTML = '<tr><td colspan="6" class="text-center"><div class="empty-state"><i class="fas fa-users"></i><h3>No hay clientes</h3></div></td></tr>';
+                table.innerHTML = '<tr><td colspan="4" class="text-center"><div class="empty-state"><i class="fas fa-users"></i><h3>No hay clientes</h3></div></td></tr>';
                 document.getElementById('clientsPagination').innerHTML = '';
                 return;
             }
@@ -181,9 +179,7 @@
                 <tr>
                     <td>${client.id}</td>
                     <td>${Utils.escapeHtml(client.name)}</td>
-                    <td>${Utils.escapeHtml(client.phone || '-')}</td>
-                    <td>${Utils.formatCurrency(client.totalPurchased)}</td>
-                    <td>${client.totalQuantity} unidades</td>
+                    <td>${Utils.escapeHtml(client.notes || '-')}</td>
                     <td class="table-actions">
                         <button class="btn btn-sm btn-info" onclick="editClient(${client.id})"><i class="fas fa-edit"></i></button>
                         <button class="btn btn-sm btn-danger" onclick="deleteClient(${client.id})"><i class="fas fa-trash"></i></button>

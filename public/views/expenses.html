@@ -194,7 +194,7 @@
             
             table.innerHTML = items.map(expense => `
                 <tr>
-                    <td>${Utils.formatDate(expense.date)}</td>
+                    <td>${Utils.formatDateShort(expense.date)}</td>
                     <td><code>${expense.reference}</code></td>
                     <td>${Utils.escapeHtml(expense.concept)}</td>
                     <td><strong class="text-danger">${Utils.formatCurrency(expense.amount)}</strong></td>
@@ -303,7 +303,7 @@
                 
                 document.getElementById('expenseDetailContent').innerHTML = `
                     <p><strong>Referencia:</strong> <code>${expense.reference}</code></p>
-                    <p><strong>Fecha:</strong> ${Utils.formatDate(expense.date)}</p>
+                    <p><strong>Fecha:</strong> ${Utils.formatDateShort(expense.date)}</p>
                     <p><strong>Concepto:</strong> ${Utils.escapeHtml(expense.concept)}</p>
                     <p><strong>Monto:</strong> <span class="text-danger">${Utils.formatCurrency(expense.amount)}</span></p>
                     ${expense.note ? `<p><strong>Nota:</strong> ${Utils.escapeHtml(expense.note)}</p>` : ''}

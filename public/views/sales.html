@@ -199,7 +199,7 @@
                     
                     <div class="form-group" id="initialPaymentGroup" style="display: none;">
                         <label for="saleInitialPayment">Abono Inicial</label>
-                        <input type="text" id="saleInitialPayment" class="form-control" placeholder="$ 0 (opcional)">
+                        <input type="text" id="saleInitialPayment" class="form-control" placeholder="$ 0 (opcional)" oninput="toggleInitialPaymentMethodVisibility()">
                         <small class="text-muted">Deje en 0 si no hay abono inicial</small>
                     </div>
                     
@@ -499,7 +499,7 @@
                 
                 return `
                     <tr>
-                        <td style="white-space: nowrap;">${Utils.formatDate(sale.date)}</td>
+                        <td style="white-space: nowrap;">${Utils.formatDateShort(sale.date)}</td>
                         <td><code style="font-size: 0.75rem;">${sale.reference.substring(0, 8)}...</code></td>
                         <td>${Utils.escapeHtml(sale.clientName)}</td>
                         <td style="text-align: center;">${Utils.formatQuantity(totalItems)}</td>
@@ -557,7 +557,7 @@
                                                 : 'Efectivo';
                                             return `
                                                 <tr>
-                                                    <td>${Utils.formatDate(p.date)}</td>
+                                                    <td>${Utils.formatDateShort(p.date)}</td>
                                                     <td>${Utils.formatCurrency(p.amount)}</td>
                                                     <td><span class="badge ${p.paymentMethod === 'transfer' ? 'badge-info' : 'badge-success'}">${methodLabel}</span></td>
                                                     <td>${Utils.escapeHtml(p.note || '-')}</td>
@@ -707,9 +707,26 @@
                 transferTypeGroup.style.display = 'block';
             } else if (paymentMethod === 'credit') {
                 initialPaymentGroup.style.display = 'block';
-                initialPaymentMethodGroup.style.display = 'block';
+                // Solo mostrar método de abono si hay un abono > 0
+                toggleInitialPaymentMethodVisibility();
             } else {
                 document.getElementById('saleInitialPayment').value = '';
+            }
+        }
+        
+        function toggleInitialPaymentMethodVisibility() {
+            const initialPaymentStr = document.getElementById('saleInitialPayment').value;
+            const initialPayment = Utils.parseNumber(initialPaymentStr) || 0;
+            const initialPaymentMethodGroup = document.getElementById('initialPaymentMethodGroup');
+            const initialPaymentTransferTypeGroup = document.getElementById('initialPaymentTransferTypeGroup');
+            
+            if (initialPayment > 0) {
+                initialPaymentMethodGroup.style.display = 'block';
+                // Verificar si también mostrar tipo de transferencia
+                toggleInitialPaymentTransferType();
+            } else {
+                initialPaymentMethodGroup.style.display = 'none';
+                initialPaymentTransferTypeGroup.style.display = 'none';
             }
         }
         

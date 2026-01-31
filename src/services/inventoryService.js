@@ -6,6 +6,7 @@ const ProductService = require('./productService');
  */
 const EXIT_REASONS = {
     waste: 'Desecho',
+    cracked: 'Picado',
     adjustment: 'Ajuste de inventario',
     gift_rodrigo: 'Obsequio Rodrigo'
 };
