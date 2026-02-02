@@ -33,6 +33,7 @@ const SaleService = {
     
     /**
      * Obtiene ventas filtradas
+     * Ordenadas por fecha de venta (date) primero, luego por fecha de creación (createdAt)
      */
     getFiltered(filters = {}) {
         let sales = this.getAllWithDetails();
@@ -54,6 +55,17 @@ const SaleService = {
                 s.items.some(item => item.productId === parseInt(filters.productId))
             );
         }
+        
+        // Ordenar por fecha de venta (date) primero, luego por fecha de creación
+        sales.sort((a, b) => {
+            if (a.date !== b.date) {
+                return a.date.localeCompare(b.date);
+            }
+            // Si misma fecha, usar createdAt como desempate
+            const createdA = new Date(a.createdAt || a.date);
+            const createdB = new Date(b.createdAt || b.date);
+            return createdA - createdB;
+        });
         
         return sales;
     },
@@ -217,6 +229,38 @@ const SaleService = {
         
         if (!db.writeJSON('sales.json', data)) {
             return { success: false, message: 'Error al guardar la venta' };
+        }
+        
+        // Si es venta a crédito con abono inicial, registrar también en payments.json
+        if (paymentMethod === 'credit' && payments.length > 0) {
+            const initialPaymentData = payments[0];
+            let paymentsData = db.readJSON('payments.json');
+            if (!paymentsData) {
+                paymentsData = { payments: [] };
+            }
+            
+            const paymentId = db.generateReference('P');
+            const newPaymentRecord = {
+                id: paymentId,
+                reference: paymentId,
+                clientId: parseInt(saleData.clientId),
+                amount: initialPaymentData.amount,
+                paymentMethod: initialPaymentData.paymentMethod,
+                transferType: initialPaymentData.transferType,
+                note: 'Abono inicial',
+                date: initialPaymentData.date,
+                appliedToSales: [{
+                    saleId: newSale.id,
+                    saleReference: newSale.reference,
+                    amountApplied: initialPaymentData.amount,
+                    newStatus: newSale.status
+                }],
+                createdAt: db.getCurrentDateTime(),
+                isInitialPayment: true
+            };
+            
+            paymentsData.payments.push(newPaymentRecord);
+            db.writeJSON('payments.json', paymentsData);
         }
         
         return { success: true, sale: newSale };

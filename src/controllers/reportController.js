@@ -4,6 +4,7 @@ const InventoryService = require('../services/inventoryService');
 const CashRegisterService = require('../services/cashRegisterService');
 const ProductService = require('../services/productService');
 const ClientService = require('../services/clientService');
+const PortfolioService = require('../services/portfolioService');
 
 /**
  * Controlador de reportes
@@ -160,6 +161,7 @@ const ReportController = {
     
     /**
      * Reporte diario
+     * Desglose de ingresos: Efectivo + Transferencias (por tipo) + Abonos créditos
      */
     getDailyReport(req, res) {
         const { date } = req.query;
@@ -171,7 +173,6 @@ const ReportController = {
             });
         }
         
-        const salesStats = SaleService.getStats(date, date);
         const expensesStats = ExpenseService.getStats(date, date);
         const inventoryStats = InventoryService.getStats(date, date);
         const cashRegister = CashRegisterService.getByDate(date);
@@ -180,14 +181,98 @@ const ReportController = {
         const expenses = ExpenseService.getFiltered({ startDate: date, endDate: date });
         const entries = InventoryService.getFiltered({ startDate: date, endDate: date });
         
+        // Calcular desglose de ingresos
+        let ventasEfectivo = 0;
+        let ventasTransferencia = 0;
+        let ventasNequi = 0;
+        let ventasBancolombia = 0;
+        let ventasDavivienda = 0;
+        let totalVentas = 0;
+        
+        sales.forEach(sale => {
+            totalVentas += sale.total;
+            
+            if (sale.paymentMethod === 'cash') {
+                ventasEfectivo += sale.total;
+            } else if (sale.paymentMethod === 'transfer') {
+                ventasTransferencia += sale.total;
+                if (sale.transferType === 'nequi') ventasNequi += sale.total;
+                else if (sale.transferType === 'bancolombia') ventasBancolombia += sale.total;
+                else if (sale.transferType === 'davivienda') ventasDavivienda += sale.total;
+            }
+            // Las ventas a crédito NO suman como ingreso directo (solo los abonos)
+        });
+        
+        // Obtener abonos de créditos del día (desde payments.json)
+        const paymentStats = PortfolioService.getPaymentStats(date, date);
+        const abonosCreditos = paymentStats.totalPayments || 0;
+        const abonosEfectivo = paymentStats.cashTotal || 0;
+        const abonosTransferencia = paymentStats.transferTotal || 0;
+        
+        // Desglose de abonos por tipo de transferencia
+        let abonosNequi = 0;
+        let abonosBancolombia = 0;
+        let abonosDavivienda = 0;
+        if (paymentStats.payments) {
+            paymentStats.payments.forEach(p => {
+                if (p.paymentMethod === 'transfer') {
+                    if (p.transferType === 'nequi') abonosNequi += p.amount;
+                    else if (p.transferType === 'bancolombia') abonosBancolombia += p.amount;
+                    else if (p.transferType === 'davivienda') abonosDavivienda += p.amount;
+                }
+            });
+        }
+        
+        // Total ingresos = ventas efectivo + ventas transferencia + abonos créditos
+        const totalIngresos = ventasEfectivo + ventasTransferencia + abonosCreditos;
+        
+        // Total efectivo del día (ventas + abonos en efectivo)
+        const totalEfectivo = ventasEfectivo + abonosEfectivo;
+        
+        // Total transferencias del día (ventas + abonos en transferencia)
+        const totalTransferencias = ventasTransferencia + abonosTransferencia;
+        
         return res.json({
             success: true,
             report: {
                 date,
-                sales: {
-                    stats: salesStats,
+                // Resumen general
+                totalVentas: Math.round(totalVentas),
+                totalIngresos: Math.round(totalIngresos),
+                totalGastos: Math.round(expensesStats.totalExpenses),
+                utilidad: Math.round(totalIngresos - expensesStats.totalExpenses),
+                
+                // Desglose de ventas
+                ventas: {
+                    efectivo: Math.round(ventasEfectivo),
+                    transferencia: Math.round(ventasTransferencia),
+                    nequi: Math.round(ventasNequi),
+                    bancolombia: Math.round(ventasBancolombia),
+                    davivienda: Math.round(ventasDavivienda),
                     count: sales.length
                 },
+                
+                // Abonos de créditos
+                abonos: {
+                    total: Math.round(abonosCreditos),
+                    efectivo: Math.round(abonosEfectivo),
+                    transferencia: Math.round(abonosTransferencia),
+                    nequi: Math.round(abonosNequi),
+                    bancolombia: Math.round(abonosBancolombia),
+                    davivienda: Math.round(abonosDavivienda),
+                    count: paymentStats.paymentsCount || 0
+                },
+                
+                // Totales consolidados por método
+                totales: {
+                    efectivo: Math.round(totalEfectivo),
+                    transferencia: Math.round(totalTransferencias),
+                    nequi: Math.round(ventasNequi + abonosNequi),
+                    bancolombia: Math.round(ventasBancolombia + abonosBancolombia),
+                    davivienda: Math.round(ventasDavivienda + abonosDavivienda)
+                },
+                
+                // Gastos e inventario
                 expenses: {
                     stats: expensesStats,
                     count: expenses.length
@@ -196,8 +281,7 @@ const ReportController = {
                     stats: inventoryStats,
                     count: entries.length
                 },
-                cashRegister: cashRegister || null,
-                profit: Math.round(salesStats.totalSales - expensesStats.totalExpenses)
+                cashRegister: cashRegister || null
             }
         });
     }

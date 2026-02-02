@@ -63,6 +63,7 @@ const InventoryService = {
     
     /**
      * Obtiene entradas/salidas filtradas
+     * Ordenadas por fecha (date) primero, luego por fecha de creación (createdAt)
      */
     getFiltered(filters = {}) {
         let entries = this.getAllWithDetails();
@@ -98,6 +99,16 @@ const InventoryService = {
                 e.toWarehouseId === wId
             );
         }
+        
+        // Ordenar por fecha (date) primero, luego por fecha de creación
+        entries.sort((a, b) => {
+            if (a.date !== b.date) {
+                return a.date.localeCompare(b.date);
+            }
+            const createdA = new Date(a.createdAt || a.date);
+            const createdB = new Date(b.createdAt || b.date);
+            return createdA - createdB;
+        });
         
         return entries;
     },

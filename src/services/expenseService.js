@@ -15,6 +15,7 @@ const ExpenseService = {
     
     /**
      * Obtiene gastos filtrados
+     * Ordenados por fecha (date) primero, luego por fecha de creación (createdAt)
      */
     getFiltered(filters = {}) {
         let expenses = this.getAll();
@@ -26,6 +27,16 @@ const ExpenseService = {
         if (filters.endDate) {
             expenses = expenses.filter(e => e.date <= filters.endDate);
         }
+        
+        // Ordenar por fecha (date) primero, luego por fecha de creación
+        expenses.sort((a, b) => {
+            if (a.date !== b.date) {
+                return a.date.localeCompare(b.date);
+            }
+            const createdA = new Date(a.createdAt || a.date);
+            const createdB = new Date(b.createdAt || b.date);
+            return createdA - createdB;
+        });
         
         return expenses;
     },

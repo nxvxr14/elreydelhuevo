@@ -185,6 +185,7 @@ const PortfolioService = {
     
     /**
      * Obtiene el historial de abonos de un cliente
+     * Ordenados por fecha del pago (date) primero, luego por fecha de creación (createdAt)
      */
     getClientPaymentHistory(clientId) {
         const paymentsData = db.readJSON('payments.json');
@@ -192,7 +193,16 @@ const PortfolioService = {
         
         return paymentsData.payments
             .filter(p => p.clientId === parseInt(clientId))
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            .sort((a, b) => {
+                // Ordenar por fecha del pago primero (más reciente primero)
+                if (a.date !== b.date) {
+                    return b.date.localeCompare(a.date);
+                }
+                // Si misma fecha, usar createdAt como desempate
+                const createdA = new Date(a.createdAt || a.date);
+                const createdB = new Date(b.createdAt || b.date);
+                return createdB - createdA;
+            });
     },
     
     /**
@@ -409,6 +419,7 @@ const PortfolioService = {
     
     /**
      * Obtiene estadísticas de abonos para reportes
+     * Ordenados por fecha del pago (date) primero, luego por fecha de creación (createdAt)
      */
     getPaymentStats(startDate, endDate) {
         const paymentsData = db.readJSON('payments.json');
@@ -417,13 +428,24 @@ const PortfolioService = {
                 totalPayments: 0,
                 paymentsCount: 0,
                 cashTotal: 0,
-                transferTotal: 0
+                transferTotal: 0,
+                payments: []
             };
         }
         
-        const payments = paymentsData.payments.filter(p => 
+        let payments = paymentsData.payments.filter(p => 
             p.date >= startDate && p.date <= endDate
         );
+        
+        // Ordenar por fecha del pago primero, luego por createdAt
+        payments.sort((a, b) => {
+            if (a.date !== b.date) {
+                return a.date.localeCompare(b.date);
+            }
+            const createdA = new Date(a.createdAt || a.date);
+            const createdB = new Date(b.createdAt || b.date);
+            return createdA - createdB;
+        });
         
         let totalPayments = 0;
         let cashTotal = 0;

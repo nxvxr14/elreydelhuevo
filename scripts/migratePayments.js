@@ -1,8 +1,6 @@
 /**
  * Script de migración: Migrar abonos existentes al nuevo sistema de cartera
- * 
- * Este script lee los abonos existentes en las ventas a crédito y los registra
- * en el nuevo archivo payments.json, manteniendo la trazabilidad.
+ * Incluye abonos iniciales y abonos posteriores
  */
 
 const fs = require('fs');
@@ -32,7 +30,7 @@ function migrate() {
         paymentsData = { payments: [] };
     }
     
-    // Obtener IDs de pagos ya migrados para evitar duplicados
+    // Obtener referencias de pagos ya migrados para evitar duplicados
     const existingPaymentRefs = new Set(paymentsData.payments.map(p => p.reference));
     
     let migratedCount = 0;
@@ -54,6 +52,9 @@ function migrate() {
                 return;
             }
             
+            // Determinar si es abono inicial o posterior
+            const isInitialPayment = payment.note === 'Abono inicial' || index === 0;
+            
             // Crear el nuevo registro de pago
             const newPayment = {
                 id: generateReference('P'),
@@ -62,7 +63,7 @@ function migrate() {
                 amount: payment.amount,
                 paymentMethod: payment.paymentMethod || 'cash',
                 transferType: payment.transferType || null,
-                note: payment.note || 'Migrado del sistema anterior',
+                note: payment.note || (isInitialPayment ? 'Abono inicial' : 'Abono'),
                 date: payment.date || sale.date,
                 appliedToSales: [{
                     saleId: sale.id,
@@ -71,11 +72,12 @@ function migrate() {
                     newStatus: sale.status
                 }],
                 createdAt: sale.updatedAt || sale.createdAt,
-                migratedFrom: 'legacy_sale_payments'
+                migratedFrom: 'legacy_sale_payments',
+                isInitialPayment: isInitialPayment
             };
             
             paymentsData.payments.push(newPayment);
-            console.log(`→ Migrado: ${sale.reference} - Cliente ${sale.clientId} - ${payment.amount}`);
+            console.log(`→ Migrado${isInitialPayment ? ' (inicial)' : ''}: ${sale.reference} - Cliente ${sale.clientId} - ${payment.amount}`);
             migratedCount++;
         });
     });
