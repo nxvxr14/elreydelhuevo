@@ -35,6 +35,7 @@ const posRoutes = require('./src/routes/posRoutes');
 const cashRegisterRoutes = require('./src/routes/cashRegisterRoutes');
 const reportRoutes = require('./src/routes/reportRoutes');
 const seedRoutes = require('./src/routes/seedRoutes');
+const warehouseRoutes = require('./src/routes/warehouseRoutes');
 
 // Middleware de autenticación
 const { isAuthenticated } = require('./src/middleware/auth');
@@ -54,6 +55,7 @@ app.use('/api/inventory', isAuthenticated, inventoryRoutes);
 app.use('/api/pos', isAuthenticated, posRoutes);
 app.use('/api/cash-register', isAuthenticated, cashRegisterRoutes);
 app.use('/api/reports', isAuthenticated, reportRoutes);
+app.use('/api/warehouses', isAuthenticated, warehouseRoutes);
 
 // Ruta para verificar contraseña global
 app.use('/api/verify-password', isAuthenticated, require('./src/routes/verifyPasswordRoute'));
@@ -105,6 +107,10 @@ app.get('/cash-register', isAuthenticated, (req, res) => {
 
 app.get('/reports', isAuthenticated, (req, res) => {
     res.sendFile(path.join(__dirname, 'public/views/reports.html'));
+});
+
+app.get('/warehouses', isAuthenticated, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/views/warehouses.html'));
 });
 
 // Manejo de errores global

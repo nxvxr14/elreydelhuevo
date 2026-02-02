@@ -4,12 +4,14 @@
 
 let allProducts = [];
 let categories = [];
+let warehouses = [];
 let filteredProducts = [];
 let currentPage = 1;
 let originalStock = null; // Para detectar cambios de stock
 
 document.addEventListener('DOMContentLoaded', () => {
     loadCategories();
+    loadWarehouses();
     loadProducts();
 });
 
@@ -31,6 +33,22 @@ async function loadCategories() {
         });
     } catch (error) {
         console.error('Error cargando categorías:', error);
+    }
+}
+
+async function loadWarehouses() {
+    try {
+        const result = await Utils.fetch('/api/warehouses');
+        warehouses = result.warehouses;
+        
+        const productWarehouse = document.getElementById('productWarehouse');
+        productWarehouse.innerHTML = '';
+        
+        warehouses.forEach(w => {
+            productWarehouse.innerHTML += `<option value="${w.id}">${Utils.escapeHtml(w.name)}${w.isDefault ? ' (Por defecto)' : ''}</option>`;
+        });
+    } catch (error) {
+        console.error('Error cargando bodegas:', error);
     }
 }
 
@@ -133,12 +151,15 @@ function showProductModal(product = null) {
     const stockInput = document.getElementById('productStock');
     const stockLabel = document.querySelector('label[for="productStock"]');
     const stockHelpText = document.getElementById('stockHelpText');
+    const warehouseGroup = document.getElementById('warehouseGroup');
+    const warehouseSelect = document.getElementById('productWarehouse');
+    const warehouseHelpText = document.getElementById('warehouseHelpText');
     
     Utils.setupMoneyInput(priceInput);
     Utils.setupQuantityInput(stockInput);
     
     if (product) {
-        // Modo edición: deshabilitar campo de stock
+        // Modo edición: deshabilitar campo de stock y bodega
         title.textContent = 'Editar Producto';
         document.getElementById('productId').value = product.id;
         document.getElementById('productName').value = product.name;
@@ -153,8 +174,11 @@ function showProductModal(product = null) {
         stockInput.style.cursor = 'not-allowed';
         stockLabel.textContent = 'Stock Actual';
         stockHelpText.style.display = 'block';
+        
+        // Ocultar bodega en edición (no se puede cambiar)
+        warehouseGroup.style.display = 'none';
     } else {
-        // Modo creación: habilitar campo de stock
+        // Modo creación: habilitar campo de stock y bodega
         title.textContent = 'Nuevo Producto';
         stockInput.value = '0';
         
@@ -164,6 +188,17 @@ function showProductModal(product = null) {
         stockInput.style.cursor = '';
         stockLabel.textContent = 'Stock Inicial';
         stockHelpText.style.display = 'none';
+        
+        // Mostrar selector de bodega
+        warehouseGroup.style.display = 'block';
+        warehouseSelect.disabled = false;
+        warehouseHelpText.style.display = 'none';
+        
+        // Seleccionar bodega por defecto
+        const defaultWarehouse = warehouses.find(w => w.isDefault);
+        if (defaultWarehouse) {
+            warehouseSelect.value = defaultWarehouse.id;
+        }
     }
     
     modal.classList.add('active');
@@ -186,9 +221,10 @@ async function saveProduct() {
         price: price
     };
     
-    // Solo incluir stock si es creación (no edición)
+    // Solo incluir stock y bodega si es creación (no edición)
     if (!id) {
         data.stock = newStock;
+        data.warehouseId = document.getElementById('productWarehouse').value;
     }
     
     if (!data.name || !priceStr) {

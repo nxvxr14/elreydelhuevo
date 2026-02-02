@@ -27,7 +27,8 @@
                 <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
                 <a href="/categories" class="nav-item"><i class="fas fa-tags"></i><span>Categorías</span></a>
                 <a href="/clients" class="nav-item"><i class="fas fa-users"></i><span>Clientes</span></a>
-                <a href="/inventory" class="nav-item"><i class="fas fa-warehouse"></i><span>Inventario</span></a>
+                <a href="/warehouses" class="nav-item"><i class="fas fa-warehouse"></i><span>Bodegas</span></a>
+                <a href="/inventory" class="nav-item"><i class="fas fa-boxes-stacked"></i><span>Inventario</span></a>
                 <a href="/cash-register" class="nav-item"><i class="fas fa-calculator"></i><span>Caja</span></a>
                 <a href="/reports" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
             </nav>
@@ -51,10 +52,27 @@
 
             <div class="filters-bar">
                 <div class="filter-group">
+                    <label for="filterPeriod">Período:</label>
+                    <select id="filterPeriod" class="form-control" onchange="onPeriodChange()">
+                        <option value="1d">1d</option>
+                        <option value="7d">7d</option>
+                        <option value="month">Mes</option>
+                        <option value="range">Rango</option>
+                    </select>
+                </div>
+                <div class="filter-group" id="filterMonthGroup" style="display: none;">
+                    <label for="filterMonth">Mes:</label>
+                    <select id="filterMonth" class="form-control" onchange="onPeriodMonthChange()"></select>
+                </div>
+                <div class="filter-group" id="filterYearGroup" style="display: none;">
+                    <label for="filterYear">Año:</label>
+                    <select id="filterYear" class="form-control" onchange="onPeriodYearChange()"></select>
+                </div>
+                <div class="filter-group" id="filterStartDateGroup" style="display: none;">
                     <label for="filterStartDate">Desde:</label>
                     <input type="date" id="filterStartDate" class="form-control" onchange="loadSales()">
                 </div>
-                <div class="filter-group">
+                <div class="filter-group" id="filterEndDateGroup" style="display: none;">
                     <label for="filterEndDate">Hasta:</label>
                     <input type="date" id="filterEndDate" class="form-control" onchange="loadSales()">
                 </div>
@@ -327,19 +345,16 @@
 
     <script src="/js/utils.js"></script>
     <script src="/js/auth.js"></script>
+    <script src="/js/periodFilter.js"></script>
     <script>
         let sales = [];
         let clients = [];
         let products = [];
         let currentPage = 1;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            // Set default dates to current month (Bogota timezone)
-            document.getElementById('filterStartDate').value = Utils.getFirstDayOfMonth();
-            document.getElementById('filterEndDate').value = Utils.getCurrentDate();
-            
-            loadFilters();
-            loadSales();
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadFilters();
+            await PeriodFilter.init(loadSales);
         });
 
         async function loadFilters() {

@@ -19,7 +19,7 @@ const InventoryController = {
      * Obtiene todos los movimientos de inventario
      */
     getAll(req, res) {
-        const { startDate, endDate, productId, type, reason } = req.query;
+        const { startDate, endDate, productId, type, reason, warehouseId } = req.query;
         
         const filters = {};
         if (startDate) filters.startDate = startDate;
@@ -27,6 +27,7 @@ const InventoryController = {
         if (productId) filters.productId = productId;
         if (type) filters.type = type;
         if (reason) filters.reason = reason;
+        if (warehouseId) filters.warehouseId = warehouseId;
         
         const entries = InventoryService.getFiltered(filters);
         
@@ -61,6 +62,19 @@ const InventoryController = {
      */
     create(req, res) {
         const result = InventoryService.create(req.body);
+        
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        
+        return res.status(201).json(result);
+    },
+    
+    /**
+     * Crea un traslado entre bodegas
+     */
+    createTransfer(req, res) {
+        const result = InventoryService.createTransfer(req.body);
         
         if (!result.success) {
             return res.status(400).json(result);
