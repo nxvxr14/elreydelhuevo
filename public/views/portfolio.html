@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartera - EL REY DEL HUEVO</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .summary-card { background: var(--bg-card); border-radius: 12px; padding: 1.25rem; border: 1px solid var(--border-color); }
+        .summary-card h3 { color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.5rem; }
+        .summary-card .value { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); }
+        .summary-card.warning { border-left: 4px solid var(--warning); }
+        .summary-card.danger { border-left: 4px solid var(--danger); }
+        .client-row { cursor: pointer; transition: background 0.2s; }
+        .client-row:hover { background: rgba(245, 158, 11, 0.1); }
+        .urgency-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .urgency-critical { background: var(--danger); color: white; }
+        .urgency-warning { background: var(--warning); color: var(--bg-dark); }
+        .urgency-attention { background: #f97316; color: white; }
+        .urgency-normal { background: var(--success); color: white; }
+        .detail-section { margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-input); border-radius: 8px; }
+        .detail-section h4 { margin-bottom: 0.75rem; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
+        .detail-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem; }
+        .detail-stat { text-align: center; }
+        .detail-stat-label { font-size: 0.85rem; color: var(--text-secondary); }
+        .detail-stat-value { font-size: 1.25rem; font-weight: 700; }
+        .sale-status-paid { color: var(--success); }
+        .sale-status-pending { color: var(--warning); }
+    </style>
+</head>
+<body>
+    <button class="mobile-menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🥚</div>
+                <h1>EL REY DEL HUEVO</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/pos" class="nav-item"><i class="fas fa-cash-register"></i><span>Punto de Venta</span></a>
+                <a href="/sales" class="nav-item"><i class="fas fa-shopping-cart"></i><span>Ventas</span></a>
+                <a href="/portfolio" class="nav-item active"><i class="fas fa-hand-holding-usd"></i><span>Cartera</span></a>
+                <a href="/expenses" class="nav-item"><i class="fas fa-money-bill-wave"></i><span>Gastos</span></a>
+                <a href="/products" class="nav-item"><i class="fas fa-box"></i><span>Productos</span></a>
+                <a href="/categories" class="nav-item"><i class="fas fa-tags"></i><span>Categorías</span></a>
+                <a href="/clients" class="nav-item"><i class="fas fa-users"></i><span>Clientes</span></a>
+                <a href="/warehouses" class="nav-item"><i class="fas fa-warehouse"></i><span>Bodegas</span></a>
+                <a href="/inventory" class="nav-item"><i class="fas fa-boxes-stacked"></i><span>Inventario</span></a>
+                <a href="/cash-register" class="nav-item"><i class="fas fa-calculator"></i><span>Caja</span></a>
+                <a href="/reports" class="nav-item"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </nav>
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title"><i class="fas fa-hand-holding-usd"></i> Cartera</h1>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="summary-cards" id="summaryCards">
+                <div class="summary-card">
+                    <h3>Clientes con Crédito</h3>
+                    <div class="value" id="totalClients">-</div>
+                </div>
+                <div class="summary-card warning">
+                    <h3>Total Pendiente</h3>
+                    <div class="value" id="totalPending" style="color: var(--warning);">-</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Canastas en Crédito</h3>
+                    <div class="value" id="totalBaskets">-</div>
+                </div>
+                <div class="summary-card danger" id="alertsCard" style="display: none;">
+                    <h3>Alertas</h3>
+                    <div class="value" id="alertsCount" style="color: var(--danger);">-</div>
+                </div>
+            </div>
+
+            <!-- Clients List -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Total Crédito</th>
+                                    <th>Abonado</th>
+                                    <th>Pendiente</th>
+                                    <th>Canastas</th>
+                                    <th>Días Mora</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTable">
+                                <tr><td colspan="7" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Client Detail Modal -->
+    <div class="modal-overlay" id="clientDetailModal">
+        <div class="modal" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="clientDetailTitle">Cartera del Cliente</h3>
+                <button class="modal-close" onclick="closeClientDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Client Summary -->
+                <div class="detail-section">
+                    <div class="detail-stats">
+                        <div class="detail-stat">
+                            <div class="detail-stat-label">Total Créditos</div>
+                            <div class="detail-stat-value" id="detailTotalCredit">-</div>
+                        </div>
+                        <div class="detail-stat">
+                            <div class="detail-stat-label">Total Abonado</div>
+                            <div class="detail-stat-value" id="detailTotalPaid" style="color: var(--success);">-</div>
+                        </div>
+                        <div class="detail-stat">
+                            <div class="detail-stat-label">Saldo Pendiente</div>
+                            <div class="detail-stat-value" id="detailTotalPending" style="color: var(--warning);">-</div>
+                        </div>
+                        <div class="detail-stat">
+                            <div class="detail-stat-label">Canastas en Crédito</div>
+                            <div class="detail-stat-value" id="detailTotalBaskets">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Form -->
+                <div class="detail-section">
+                    <h4><i class="fas fa-money-bill-wave"></i> Registrar Abono</h4>
+                    <form id="paymentForm" onsubmit="event.preventDefault(); savePayment();">
+                        <div class="d-flex gap-1" style="flex-wrap: wrap; align-items: flex-end;">
+                            <div class="form-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
+                                <label for="paymentAmount">Monto *</label>
+                                <input type="text" id="paymentAmount" class="form-control" placeholder="$ 0" required>
+                            </div>
+                            <div class="form-group" style="flex: 1; min-width: 120px; margin-bottom: 0;">
+                                <label for="paymentMethod">Método *</label>
+                                <select id="paymentMethod" class="form-control" onchange="togglePaymentTransferType()">
+                                    <option value="cash">Efectivo</option>
+                                    <option value="transfer">Transferencia</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="paymentTransferTypeGroup" style="flex: 1; min-width: 120px; margin-bottom: 0; display: none;">
+                                <label for="paymentTransferType">Tipo</label>
+                                <select id="paymentTransferType" class="form-control">
+                                    <option value="nequi">Nequi</option>
+                                    <option value="bancolombia">Bancolombia</option>
+                                    <option value="davivienda">Davivienda</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 2; min-width: 150px; margin-bottom: 0;">
+                                <label for="paymentNote">Nota</label>
+                                <input type="text" id="paymentNote" class="form-control" placeholder="Opcional" maxlength="200">
+                            </div>
+                            <button type="submit" class="btn btn-success" style="height: 40px;">
+                                <i class="fas fa-check"></i> Abonar
+                            </button>
+                        </div>
+                        <small id="maxPaymentInfo" class="text-muted" style="display: block; margin-top: 0.5rem;"></small>
+                    </form>
+                </div>
+
+                <!-- Credit Sales History -->
+                <div class="detail-section">
+                    <h4><i class="fas fa-file-invoice-dollar"></i> Historial de Créditos</h4>
+                    <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table" style="font-size: 0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Referencia</th>
+                                    <th>Total</th>
+                                    <th>Abonado</th>
+                                    <th>Pendiente</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="creditSalesTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Payment History -->
+                <div class="detail-section">
+                    <h4><i class="fas fa-history"></i> Historial de Abonos</h4>
+                    <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                        <table class="table" style="font-size: 0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Referencia</th>
+                                    <th>Monto</th>
+                                    <th>Método</th>
+                                    <th>Aplicado a</th>
+                                    <th style="width: 50px;">Acc.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentHistoryTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeClientDetailModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        let clientsData = [];
+        let currentClientId = null;
+        let currentClientPortfolio = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPortfolio();
+        });
+
+        async function loadPortfolio() {
+            try {
+                Utils.showLoading();
+                const result = await Utils.fetch('/api/portfolio');
+                clientsData = result.clients;
+                
+                // Update summary
+                document.getElementById('totalClients').textContent = result.summary.totalClients;
+                document.getElementById('totalPending').textContent = Utils.formatCurrency(result.summary.totalPending);
+                document.getElementById('totalBaskets').textContent = Utils.formatQuantity(result.summary.totalBaskets);
+                
+                // Show alerts if any
+                if (result.summary.hasAlerts) {
+                    const alertsCard = document.getElementById('alertsCard');
+                    alertsCard.style.display = 'block';
+                    const criticalCount = result.summary.urgencyCounts.critical;
+                    const warningCount = result.summary.urgencyCounts.warning;
+                    document.getElementById('alertsCount').textContent = `${criticalCount + warningCount}`;
+                }
+                
+                renderClients();
+            } catch (error) {
+                Utils.showToast('Error al cargar la cartera', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function renderClients() {
+            const table = document.getElementById('clientsTable');
+            
+            if (clientsData.length === 0) {
+                table.innerHTML = '<tr><td colspan="7" class="text-center"><div class="empty-state"><i class="fas fa-check-circle" style="color: var(--success);"></i><h3>Sin créditos pendientes</h3><p>No hay clientes con saldo pendiente</p></div></td></tr>';
+                return;
+            }
+            
+            table.innerHTML = clientsData.map(client => {
+                const urgencyClass = `urgency-${client.urgency}`;
+                const urgencyLabels = {
+                    critical: '+30 días',
+                    warning: '15-29 días',
+                    attention: '7-14 días',
+                    normal: 'Al día'
+                };
+                
+                return `
+                    <tr class="client-row" onclick="showClientDetail(${client.clientId})">
+                        <td>
+                            <strong>${Utils.escapeHtml(client.clientName)}</strong>
+                            ${client.clientPhone ? `<br><small class="text-muted">${Utils.escapeHtml(client.clientPhone)}</small>` : ''}
+                        </td>
+                        <td>${Utils.formatCurrency(client.totalCredit)}</td>
+                        <td style="color: var(--success);">${Utils.formatCurrency(client.totalPaid)}</td>
+                        <td style="color: var(--warning); font-weight: 600;">${Utils.formatCurrency(client.totalPending)}</td>
+                        <td>${Utils.formatQuantity(client.totalBaskets)}</td>
+                        <td>${client.daysPastDue}</td>
+                        <td><span class="urgency-badge ${urgencyClass}">${urgencyLabels[client.urgency]}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function showClientDetail(clientId) {
+            try {
+                Utils.showLoading();
+                const result = await Utils.fetch(`/api/portfolio/client/${clientId}`);
+                currentClientId = clientId;
+                currentClientPortfolio = result.portfolio;
+                
+                // Update modal title
+                document.getElementById('clientDetailTitle').textContent = `Cartera - ${result.portfolio.client.name}`;
+                
+                // Update summary stats
+                document.getElementById('detailTotalCredit').textContent = Utils.formatCurrency(result.portfolio.totalCredit);
+                document.getElementById('detailTotalPaid').textContent = Utils.formatCurrency(result.portfolio.totalPaid);
+                document.getElementById('detailTotalPending').textContent = Utils.formatCurrency(result.portfolio.totalPending);
+                document.getElementById('detailTotalBaskets').textContent = Utils.formatQuantity(result.portfolio.totalBaskets);
+                
+                // Update max payment info
+                document.getElementById('maxPaymentInfo').textContent = `Máximo a abonar: ${Utils.formatCurrency(result.portfolio.totalPending)}`;
+                
+                // Render credit sales
+                renderCreditSales(result.portfolio.sales);
+                
+                // Render payment history
+                renderPaymentHistory(result.paymentHistory);
+                
+                // Reset payment form
+                document.getElementById('paymentForm').reset();
+                document.getElementById('paymentTransferTypeGroup').style.display = 'none';
+                Utils.setupMoneyInput(document.getElementById('paymentAmount'));
+                
+                document.getElementById('clientDetailModal').classList.add('active');
+            } catch (error) {
+                Utils.showToast('Error al cargar el detalle del cliente', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function renderCreditSales(sales) {
+            const table = document.getElementById('creditSalesTable');
+            
+            if (!sales || sales.length === 0) {
+                table.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin créditos</td></tr>';
+                return;
+            }
+            
+            // Sort by date (oldest first) and then by status (pending first)
+            const sortedSales = [...sales].sort((a, b) => {
+                if (a.status === 'pending' && b.status === 'paid') return -1;
+                if (a.status === 'paid' && b.status === 'pending') return 1;
+                return new Date(a.date) - new Date(b.date);
+            });
+            
+            table.innerHTML = sortedSales.map(sale => {
+                const statusClass = sale.status === 'paid' ? 'sale-status-paid' : 'sale-status-pending';
+                const statusLabel = sale.status === 'paid' ? 'Pagado' : 'Pendiente';
+                
+                return `
+                    <tr>
+                        <td>${Utils.formatDateShort(sale.date)}</td>
+                        <td><code>${sale.reference.substring(0, 10)}...</code></td>
+                        <td>${Utils.formatCurrency(sale.total)}</td>
+                        <td style="color: var(--success);">${Utils.formatCurrency(sale.paidAmount || 0)}</td>
+                        <td style="color: var(--warning);">${Utils.formatCurrency(sale.pendingAmount || 0)}</td>
+                        <td><span class="${statusClass}">${statusLabel}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderPaymentHistory(payments) {
+            const table = document.getElementById('paymentHistoryTable');
+            
+            if (!payments || payments.length === 0) {
+                table.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin abonos registrados</td></tr>';
+                return;
+            }
+            
+            const transferLabels = { nequi: 'Nequi', bancolombia: 'Bancolombia', davivienda: 'Davivienda' };
+            
+            table.innerHTML = payments.map(payment => {
+                let methodLabel = payment.paymentMethod === 'transfer' 
+                    ? `Transfer (${transferLabels[payment.transferType] || payment.transferType})`
+                    : 'Efectivo';
+                
+                // Format applied sales
+                let appliedTo = '-';
+                if (payment.appliedToSales && payment.appliedToSales.length > 0) {
+                    appliedTo = payment.appliedToSales.map(s => 
+                        `${s.saleReference.substring(0, 8)}... (${Utils.formatCurrency(s.amountApplied)})`
+                    ).join('<br>');
+                }
+                
+                return `
+                    <tr>
+                        <td>${Utils.formatDateShort(payment.date)}</td>
+                        <td><code>${payment.reference.substring(0, 10)}...</code></td>
+                        <td style="color: var(--success); font-weight: 600;">${Utils.formatCurrency(payment.amount)}</td>
+                        <td>${methodLabel}</td>
+                        <td style="font-size: 0.75rem;">${appliedTo}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deletePayment('${payment.id}')" title="Eliminar abono">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function closeClientDetailModal() {
+            document.getElementById('clientDetailModal').classList.remove('active');
+            currentClientId = null;
+            currentClientPortfolio = null;
+        }
+
+        function togglePaymentTransferType() {
+            const method = document.getElementById('paymentMethod').value;
+            document.getElementById('paymentTransferTypeGroup').style.display = method === 'transfer' ? 'block' : 'none';
+        }
+
+        async function savePayment() {
+            if (!currentClientId) {
+                Utils.showToast('Error: No hay cliente seleccionado', 'danger');
+                return;
+            }
+            
+            const amountStr = document.getElementById('paymentAmount').value;
+            const amount = Utils.parseNumber(amountStr);
+            
+            if (!amount || amount <= 0) {
+                Utils.showToast('Ingrese un monto válido', 'warning');
+                return;
+            }
+            
+            // Validate against max pending
+            if (currentClientPortfolio && amount > currentClientPortfolio.totalPending) {
+                Utils.showToast(`El abono no puede exceder el saldo pendiente (${Utils.formatCurrency(currentClientPortfolio.totalPending)})`, 'warning');
+                return;
+            }
+            
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            const transferType = paymentMethod === 'transfer' 
+                ? document.getElementById('paymentTransferType').value 
+                : null;
+            const note = document.getElementById('paymentNote').value.trim();
+            
+            try {
+                Utils.showLoading();
+                
+                const result = await Utils.fetch(`/api/portfolio/client/${currentClientId}/payment`, {
+                    method: 'POST',
+                    body: JSON.stringify({ amount, paymentMethod, transferType, note })
+                });
+                
+                // Show success message with details
+                let message = `Abono de ${Utils.formatCurrency(amount)} registrado.`;
+                if (result.appliedToSales && result.appliedToSales.length > 0) {
+                    const paidSales = result.appliedToSales.filter(s => s.newStatus === 'paid').length;
+                    if (paidSales > 0) {
+                        message += ` ${paidSales} factura(s) pagada(s) completamente.`;
+                    }
+                }
+                
+                Utils.showToast(message, 'success');
+                
+                // Reload data
+                await loadPortfolio();
+                
+                // Reload client detail if still open
+                if (currentClientId) {
+                    await showClientDetail(currentClientId);
+                }
+                
+            } catch (error) {
+                Utils.showToast(error.message || 'Error al registrar el abono', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        async function deletePayment(paymentId) {
+            const confirmed = await Utils.confirm('¿Eliminar este abono? Se revertirá el efecto en las facturas afectadas.');
+            if (!confirmed) return;
+            
+            const verified = await Utils.promptPassword('Ingrese la contraseña para eliminar');
+            if (!verified) return;
+            
+            try {
+                Utils.showLoading();
+                
+                const result = await Utils.fetch(`/api/portfolio/payment/${paymentId}`, {
+                    method: 'DELETE'
+                });
+                
+                Utils.showToast(`Abono de ${Utils.formatCurrency(result.revertedAmount)} eliminado y revertido`, 'success');
+                
+                // Reload data
+                await loadPortfolio();
+                
+                // Reload client detail if still open
+                if (currentClientId) {
+                    await showClientDetail(currentClientId);
+                }
+                
+            } catch (error) {
+                Utils.showToast(error.message || 'Error al eliminar el abono', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>

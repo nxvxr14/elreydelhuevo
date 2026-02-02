@@ -1,106 +1,132 @@
 /**
- * Credits Report Module - Reporte de Créditos
+ * Credits Report Module - Reporte de Cartera
+ * Muestra el resumen totalizado de créditos por cliente
  */
 
 Reports.loaders.credits = async function() {
     const { startDate, endDate, clientId, creditStatus } = Reports.getFilters();
     
-    const result = await Utils.fetch('/api/sales?startDate=' + startDate + '&endDate=' + endDate);
-    let allSales = result.sales || [];
+    // Obtener datos de cartera
+    const portfolioResult = await Utils.fetch('/api/portfolio');
+    let clientsWithCredits = portfolioResult.clients || [];
+    const portfolioSummary = portfolioResult.summary || {};
     
-    let creditSales = allSales.filter(s => s.paymentMethod === 'credit');
+    // Obtener estadísticas de abonos del período
+    const paymentStats = await Utils.fetch(`/api/portfolio/stats?startDate=${startDate}&endDate=${endDate}`);
     
+    // Filtrar por cliente si se seleccionó
+    if (clientId) {
+        clientsWithCredits = clientsWithCredits.filter(c => c.clientId === parseInt(clientId));
+    }
+    
+    // Filtrar por estado de crédito
     if (creditStatus === 'pending') {
-        creditSales = creditSales.filter(s => s.status === 'pending');
+        clientsWithCredits = clientsWithCredits.filter(c => c.totalPending > 0);
     }
     
-    if (clientId) {
-        creditSales = creditSales.filter(s => s.clientId === parseInt(clientId));
-    }
+    // Ordenar por saldo pendiente (mayor primero)
+    clientsWithCredits.sort((a, b) => b.totalPending - a.totalPending);
     
-    creditSales.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+    // Calcular totales
+    const totalPendingFiltered = clientsWithCredits.reduce((sum, c) => sum + c.totalPending, 0);
+    const totalCreditFiltered = clientsWithCredits.reduce((sum, c) => sum + c.totalCredit, 0);
+    const totalBasketsFiltered = clientsWithCredits.reduce((sum, c) => sum + c.totalBaskets, 0);
     
-    const totalPending = creditSales.reduce((sum, s) => sum + (s.pendingAmount || 0), 0);
-    const totalSalesValue = creditSales.reduce((sum, s) => sum + s.total, 0);
-    const pendingCount = creditSales.filter(s => s.status === 'pending').length;
+    // Abonos del período (desde el nuevo sistema)
+    const abonosDelPeriodo = paymentStats.totalPayments || 0;
+    const abonosEnEfectivo = paymentStats.cashTotal || 0;
+    const abonosEnTransferencia = paymentStats.transferTotal || 0;
     
-    // Calcular abonos y recaudo
-    const allCreditsResult = await Utils.fetch('/api/sales');
-    let allCreditSales = (allCreditsResult.sales || []).filter(s => s.paymentMethod === 'credit');
-    
-    if (clientId) {
-        allCreditSales = allCreditSales.filter(s => s.clientId === parseInt(clientId));
-    }
-    
-    let abonosDelDia = 0;
-    let recaudoCartera = 0;
-    
-    allCreditSales.forEach(sale => {
-        if (sale.payments && sale.payments.length > 0) {
-            sale.payments.forEach(payment => {
-                if (payment.date >= startDate && payment.date <= endDate) {
-                    if (payment.date === sale.date) {
-                        abonosDelDia += payment.amount;
-                    } else {
-                        recaudoCartera += payment.amount;
-                    }
-                }
-            });
-        }
-    });
-    
-    Reports.cache.credits = { creditSales, creditStatus };
+    Reports.cache.credits = { clientsWithCredits, creditStatus };
     Reports.pagination.credits = 1;
     
-    Reports.getContent().innerHTML = `
-        <div class="stats-grid mb-3">
-            <div class="stat-card">
-                <div class="stat-icon profit"><i class="fas fa-coins"></i></div>
-                <div class="stat-info">
-                    <h3>${Utils.formatCurrency(totalSalesValue)}</h3>
-                    <p>Valor Total Créditos</p>
-                </div>
+    // Alertas de cartera
+    const criticalCount = clientsWithCredits.filter(c => c.urgency === 'critical').length;
+    const warningCount = clientsWithCredits.filter(c => c.urgency === 'warning').length;
+    const alertHtml = (criticalCount + warningCount) > 0 ? `
+        <div class="alert alert-warning mb-2" style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border-radius: 8px; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger);">
+            <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; color: var(--danger);"></i>
+            <div>
+                <strong style="color: var(--danger);">Alertas de Cartera</strong><br>
+                <small>${criticalCount} cliente(s) con más de 30 días • ${warningCount} cliente(s) con 15-29 días</small>
             </div>
+        </div>
+    ` : '';
+    
+    Reports.getContent().innerHTML = `
+        ${alertHtml}
+        
+        <div class="stats-grid mb-3">
             <div class="stat-card">
                 <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15);"><i class="fas fa-clock" style="color: var(--warning);"></i></div>
                 <div class="stat-info">
-                    <h3 class="text-warning">${Utils.formatCurrency(totalPending)}</h3>
-                    <p>Por Cobrar (${pendingCount} pendientes)</p>
+                    <h3 class="text-warning">${Utils.formatCurrency(totalPendingFiltered)}</h3>
+                    <p>Cartera Pendiente</p>
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.15);"><i class="fas fa-wallet" style="color: #3b82f6;"></i></div>
+                <div class="stat-icon profit"><i class="fas fa-coins"></i></div>
                 <div class="stat-info">
-                    <h3 style="color: #3b82f6;">${Utils.formatCurrency(recaudoCartera)}</h3>
-                    <p>Recaudo Cartera</p>
+                    <h3>${Utils.formatCurrency(totalCreditFiltered)}</h3>
+                    <p>Total Créditos Otorgados</p>
                 </div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon sales"><i class="fas fa-hand-holding-usd"></i></div>
                 <div class="stat-info">
-                    <h3 class="text-success">${Utils.formatCurrency(abonosDelDia)}</h3>
-                    <p>Abonos del Día</p>
+                    <h3 class="text-success">${Utils.formatCurrency(abonosDelPeriodo)}</h3>
+                    <p>Abonos del Período</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-boxes"></i></div>
+                <div class="stat-info">
+                    <h3>${Utils.formatQuantity(totalBasketsFiltered)}</h3>
+                    <p>Canastas en Crédito</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-3" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="stat-card" style="padding: 1rem;">
+                <div class="stat-info" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <i class="fas fa-money-bill-wave" style="color: var(--success); margin-right: 0.5rem;"></i>
+                        Abonos en Efectivo
+                    </div>
+                    <strong class="text-success">${Utils.formatCurrency(abonosEnEfectivo)}</strong>
+                </div>
+            </div>
+            <div class="stat-card" style="padding: 1rem;">
+                <div class="stat-info" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <i class="fas fa-university" style="color: #3b82f6; margin-right: 0.5rem;"></i>
+                        Abonos en Transferencia
+                    </div>
+                    <strong style="color: #3b82f6;">${Utils.formatCurrency(abonosEnTransferencia)}</strong>
                 </div>
             </div>
         </div>
         
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-credit-card" style="margin-right: 0.5rem; color: var(--primary);"></i>Créditos ${creditStatus === 'pending' ? 'Pendientes de Cobro' : '(Todos)'}</h3>
+                <h3 class="card-title"><i class="fas fa-users" style="margin-right: 0.5rem; color: var(--primary);"></i>Resumen por Cliente (${clientsWithCredits.length} clientes)</h3>
+                <a href="/portfolio" class="btn btn-sm btn-primary" style="margin-left: auto;">
+                    <i class="fas fa-external-link-alt"></i> Ir a Cartera
+                </a>
             </div>
             <div class="card-body">
                 <div class="table-container">
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Fecha</th>
-                                <th>Referencia</th>
                                 <th>Cliente</th>
-                                <th>Total Venta</th>
-                                <th>Abonado</th>
-                                <th>Pendiente</th>
+                                <th>Total Créditos</th>
+                                <th>Total Abonado</th>
+                                <th>Saldo Pendiente</th>
+                                <th>Canastas</th>
+                                <th>Días Mora</th>
                                 <th>Estado</th>
-                                <th>Acc.</th>
                             </tr>
                         </thead>
                         <tbody id="creditsTableBody"></tbody>
@@ -117,29 +143,34 @@ Reports.loaders.credits = async function() {
 function renderCreditsTable() {
     if (!Reports.cache.credits) return;
     
-    const { items: creditSales, currentPage, totalPages } = Utils.paginate(
-        Reports.cache.credits.creditSales, Reports.pagination.credits, Reports.ITEMS_PER_PAGE
+    const { items: clients, currentPage, totalPages } = Utils.paginate(
+        Reports.cache.credits.clientsWithCredits, Reports.pagination.credits, Reports.ITEMS_PER_PAGE
     );
     const tbody = document.getElementById('creditsTableBody');
     if (!tbody) return;
     
-    if (Reports.cache.credits.creditSales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No hay créditos en este período</td></tr>';
+    if (Reports.cache.credits.clientsWithCredits.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No hay clientes con créditos pendientes</td></tr>';
     } else {
-        tbody.innerHTML = creditSales.map(s => `
+        const urgencyLabels = {
+            critical: '<span class="badge badge-danger">+30 días</span>',
+            warning: '<span class="badge badge-warning">15-29 días</span>',
+            attention: '<span class="badge" style="background: #f97316; color: white;">7-14 días</span>',
+            normal: '<span class="badge badge-success">Al día</span>'
+        };
+        
+        tbody.innerHTML = clients.map(client => `
             <tr>
-                <td>${Utils.formatDateShort(s.date)}</td>
-                <td><code>${s.reference.substring(0, 8)}...</code></td>
-                <td>${Utils.escapeHtml(s.clientName)}</td>
-                <td>${Utils.formatCurrency(s.total)}</td>
-                <td class="text-success">${Utils.formatCurrency(s.paidAmount || 0)}</td>
-                <td><strong class="${s.pendingAmount > 0 ? 'text-warning' : 'text-success'}">${Utils.formatCurrency(s.pendingAmount || 0)}</strong></td>
-                <td>${s.status === 'pending' ? '<span class="badge badge-warning">Pendiente</span>' : '<span class="badge badge-success">Pagado</span>'}</td>
                 <td>
-                    <a href="/sales" class="btn btn-sm btn-info" title="Ver en ventas">
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
+                    <strong>${Utils.escapeHtml(client.clientName)}</strong>
+                    ${client.clientPhone ? `<br><small class="text-muted">${Utils.escapeHtml(client.clientPhone)}</small>` : ''}
                 </td>
+                <td>${Utils.formatCurrency(client.totalCredit)}</td>
+                <td class="text-success">${Utils.formatCurrency(client.totalPaid)}</td>
+                <td><strong class="text-warning">${Utils.formatCurrency(client.totalPending)}</strong></td>
+                <td>${Utils.formatQuantity(client.totalBaskets)}</td>
+                <td>${client.daysPastDue} días</td>
+                <td>${urgencyLabels[client.urgency] || urgencyLabels.normal}</td>
             </tr>
         `).join('');
     }
