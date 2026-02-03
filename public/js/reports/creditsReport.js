@@ -1,6 +1,6 @@
 /**
- * Credits Report Module - Reporte de Cartera
- * Muestra el resumen totalizado de créditos por cliente
+ * Credits Report Module - Reporte de Créditos Pendientes
+ * Muestra SOLO los créditos pendientes de pago (no los pagados completamente)
  */
 
 Reports.loaders.credits = async function() {
@@ -9,35 +9,24 @@ Reports.loaders.credits = async function() {
     // Obtener datos de cartera
     const portfolioResult = await Utils.fetch('/api/portfolio');
     let clientsWithCredits = portfolioResult.clients || [];
-    const portfolioSummary = portfolioResult.summary || {};
     
-    // Obtener estadísticas de abonos del período
-    const paymentStats = await Utils.fetch(`/api/portfolio/stats?startDate=${startDate}&endDate=${endDate}`);
+    // IMPORTANTE: Filtrar SOLO clientes con créditos pendientes (totalPending > 0)
+    clientsWithCredits = clientsWithCredits.filter(c => c.totalPending > 0);
     
     // Filtrar por cliente si se seleccionó
     if (clientId) {
         clientsWithCredits = clientsWithCredits.filter(c => c.clientId === parseInt(clientId));
     }
     
-    // Filtrar por estado de crédito
-    if (creditStatus === 'pending') {
-        clientsWithCredits = clientsWithCredits.filter(c => c.totalPending > 0);
-    }
-    
     // Ordenar por saldo pendiente (mayor primero)
     clientsWithCredits.sort((a, b) => b.totalPending - a.totalPending);
     
-    // Calcular totales
+    // Calcular totales (solo de créditos pendientes)
     const totalPendingFiltered = clientsWithCredits.reduce((sum, c) => sum + c.totalPending, 0);
     const totalCreditFiltered = clientsWithCredits.reduce((sum, c) => sum + c.totalCredit, 0);
     const totalBasketsFiltered = clientsWithCredits.reduce((sum, c) => sum + c.totalBaskets, 0);
     
-    // Abonos del período (desde el nuevo sistema)
-    const abonosDelPeriodo = paymentStats.totalPayments || 0;
-    const abonosEnEfectivo = paymentStats.cashTotal || 0;
-    const abonosEnTransferencia = paymentStats.transferTotal || 0;
-    
-    Reports.cache.credits = { clientsWithCredits, creditStatus };
+    Reports.cache.credits = { clientsWithCredits };
     Reports.pagination.credits = 1;
     
     // Alertas de cartera
@@ -61,7 +50,7 @@ Reports.loaders.credits = async function() {
                 <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15);"><i class="fas fa-clock" style="color: var(--warning);"></i></div>
                 <div class="stat-info">
                     <h3 class="text-warning">${Utils.formatCurrency(totalPendingFiltered)}</h3>
-                    <p>Cartera Pendiente</p>
+                    <p>Total Pendiente</p>
                 </div>
             </div>
             <div class="stat-card">
@@ -72,45 +61,24 @@ Reports.loaders.credits = async function() {
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon sales"><i class="fas fa-hand-holding-usd"></i></div>
-                <div class="stat-info">
-                    <h3 class="text-success">${Utils.formatCurrency(abonosDelPeriodo)}</h3>
-                    <p>Abonos del Período</p>
-                </div>
-            </div>
-            <div class="stat-card">
                 <div class="stat-icon"><i class="fas fa-boxes"></i></div>
                 <div class="stat-info">
                     <h3>${Utils.formatQuantity(totalBasketsFiltered)}</h3>
                     <p>Canastas en Crédito</p>
                 </div>
             </div>
-        </div>
-        
-        <div class="row mb-3" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-            <div class="stat-card" style="padding: 1rem;">
-                <div class="stat-info" style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <i class="fas fa-money-bill-wave" style="color: var(--success); margin-right: 0.5rem;"></i>
-                        Abonos en Efectivo
-                    </div>
-                    <strong class="text-success">${Utils.formatCurrency(abonosEnEfectivo)}</strong>
-                </div>
-            </div>
-            <div class="stat-card" style="padding: 1rem;">
-                <div class="stat-info" style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <i class="fas fa-university" style="color: #3b82f6; margin-right: 0.5rem;"></i>
-                        Abonos en Transferencia
-                    </div>
-                    <strong style="color: #3b82f6;">${Utils.formatCurrency(abonosEnTransferencia)}</strong>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <h3>${clientsWithCredits.length}</h3>
+                    <p>Clientes con Crédito Pendiente</p>
                 </div>
             </div>
         </div>
         
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-users" style="margin-right: 0.5rem; color: var(--primary);"></i>Resumen por Cliente (${clientsWithCredits.length} clientes)</h3>
+                <h3 class="card-title"><i class="fas fa-credit-card" style="margin-right: 0.5rem; color: var(--primary);"></i>Créditos Pendientes (${clientsWithCredits.length} clientes)</h3>
                 <a href="/portfolio" class="btn btn-sm btn-primary" style="margin-left: auto;">
                     <i class="fas fa-external-link-alt"></i> Ir a Cartera
                 </a>
@@ -156,7 +124,7 @@ function renderCreditsTable() {
             critical: '<span class="badge badge-danger">+30 días</span>',
             warning: '<span class="badge badge-warning">15-29 días</span>',
             attention: '<span class="badge" style="background: #f97316; color: white;">7-14 días</span>',
-            normal: '<span class="badge badge-success">Al día</span>'
+            normal: '<span class="badge" style="background: #3b82f6; color: white;">Recién</span>'
         };
         
         tbody.innerHTML = clients.map(client => `

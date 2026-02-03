@@ -181,16 +181,24 @@ const ReportController = {
         const expenses = ExpenseService.getFiltered({ startDate: date, endDate: date });
         const entries = InventoryService.getFiltered({ startDate: date, endDate: date });
         
-        // Calcular desglose de ingresos
+        // Calcular desglose de ingresos y canastas vendidas
         let ventasEfectivo = 0;
         let ventasTransferencia = 0;
         let ventasNequi = 0;
         let ventasBancolombia = 0;
         let ventasDavivienda = 0;
         let totalVentas = 0;
+        let totalCanastasVendidas = 0;
         
         sales.forEach(sale => {
             totalVentas += sale.total;
+            
+            // Calcular canastas vendidas (suma de cantidades de todos los items)
+            if (sale.items && sale.items.length > 0) {
+                sale.items.forEach(item => {
+                    totalCanastasVendidas += item.quantity || 0;
+                });
+            }
             
             if (sale.paymentMethod === 'cash') {
                 ventasEfectivo += sale.total;
@@ -249,7 +257,8 @@ const ReportController = {
                     nequi: Math.round(ventasNequi),
                     bancolombia: Math.round(ventasBancolombia),
                     davivienda: Math.round(ventasDavivienda),
-                    count: sales.length
+                    count: sales.length,
+                    canastas: totalCanastasVendidas
                 },
                 
                 // Abonos de créditos

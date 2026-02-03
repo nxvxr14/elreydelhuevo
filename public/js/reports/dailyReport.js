@@ -19,10 +19,24 @@ Reports.loaders.daily = async function() {
                 </div>
             </div>
             <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(34, 197, 94, 0.15);"><i class="fas fa-money-bill-wave" style="color: var(--success);"></i></div>
+                <div class="stat-info">
+                    <h3 style="color: var(--success);">${Utils.formatCurrency(r.ventas.efectivo + r.ventas.transferencia)}</h3>
+                    <p>Ventas (Efectivo + Transferencia)</p>
+                </div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-icon" style="background: rgba(59, 130, 246, 0.15);"><i class="fas fa-wallet" style="color: #3b82f6;"></i></div>
                 <div class="stat-info">
                     <h3 style="color: #3b82f6;">${Utils.formatCurrency(r.totalIngresos)}</h3>
-                    <p>Ingresos del Día</p>
+                    <p>Ingresos Totales (Ventas + Abonos)</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15);"><i class="fas fa-boxes" style="color: var(--primary);"></i></div>
+                <div class="stat-info">
+                    <h3 style="color: var(--primary);">${Utils.formatQuantity(r.ventas.canastas || 0)}</h3>
+                    <p>Canastas Vendidas</p>
                 </div>
             </div>
             <div class="stat-card">

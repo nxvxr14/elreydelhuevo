@@ -140,24 +140,25 @@ const PortfolioService = {
         });
         
         // Convertir a array con información del cliente
+        // IMPORTANTE: Incluir TODOS los clientes con créditos, incluso los pagados completamente
         const result = [];
         
         for (const clientId in clientCredits) {
             const client = clients.find(c => c.id === parseInt(clientId));
             const credits = clientCredits[clientId];
             
-            // Solo incluir clientes con saldo pendiente
+            // Calcular días de mora (solo si hay pendiente)
+            let daysPastDue = 0;
+            if (credits.oldestPendingDate) {
+                const today = new Date(db.getCurrentDate() + 'T00:00:00');
+                const oldestDate = new Date(credits.oldestPendingDate + 'T00:00:00');
+                daysPastDue = Math.floor((today - oldestDate) / (1000 * 60 * 60 * 24));
+            }
+            
+            // Determinar nivel de urgencia
+            let urgency = 'normal'; // verde
             if (credits.totalPending > 0) {
-                // Calcular días de mora
-                let daysPastDue = 0;
-                if (credits.oldestPendingDate) {
-                    const today = new Date(db.getCurrentDate() + 'T00:00:00');
-                    const oldestDate = new Date(credits.oldestPendingDate + 'T00:00:00');
-                    daysPastDue = Math.floor((today - oldestDate) / (1000 * 60 * 60 * 24));
-                }
-                
-                // Determinar nivel de urgencia
-                let urgency = 'normal'; // verde
+                // Solo calcular urgencia si hay saldo pendiente
                 if (daysPastDue >= 30) {
                     urgency = 'critical'; // rojo - más de 30 días
                 } else if (daysPastDue >= 15) {
@@ -165,27 +166,36 @@ const PortfolioService = {
                 } else if (daysPastDue >= 7) {
                     urgency = 'attention'; // naranja - 7-14 días
                 }
-                
-                result.push({
-                    clientId: parseInt(clientId),
-                    clientName: client ? client.name : 'Cliente eliminado',
-                    clientPhone: client ? client.phone : '',
-                    ...credits,
-                    daysPastDue,
-                    urgency
-                });
+            } else {
+                // Cliente completamente pagado
+                urgency = 'paid'; // Estado especial para pagados
             }
+            
+            result.push({
+                clientId: parseInt(clientId),
+                clientName: client ? client.name : 'Cliente eliminado',
+                clientPhone: client ? client.phone : '',
+                ...credits,
+                daysPastDue,
+                urgency
+            });
         }
         
-        // Ordenar por días de mora (mayor primero)
-        result.sort((a, b) => b.daysPastDue - a.daysPastDue);
+        // Ordenar: primero pendientes (por días de mora), luego pagados
+        result.sort((a, b) => {
+            // Si uno tiene pendiente y otro no, el pendiente va primero
+            if (a.totalPending > 0 && b.totalPending === 0) return -1;
+            if (a.totalPending === 0 && b.totalPending > 0) return 1;
+            // Si ambos tienen pendiente o ambos están pagados, ordenar por días de mora
+            return b.daysPastDue - a.daysPastDue;
+        });
         
         return result;
     },
     
     /**
      * Obtiene el historial de abonos de un cliente
-     * Ordenados por fecha del pago (date) primero, luego por fecha de creación (createdAt)
+     * Ordenados por fecha del pago (date) primero (más nuevos primero), luego por fecha de creación (createdAt)
      */
     getClientPaymentHistory(clientId) {
         const paymentsData = db.readJSON('payments.json');
@@ -194,11 +204,11 @@ const PortfolioService = {
         return paymentsData.payments
             .filter(p => p.clientId === parseInt(clientId))
             .sort((a, b) => {
-                // Ordenar por fecha del pago primero (más reciente primero)
+                // Ordenar por fecha del pago primero (más nuevos primero)
                 if (a.date !== b.date) {
                     return b.date.localeCompare(a.date);
                 }
-                // Si misma fecha, usar createdAt como desempate
+                // Si misma fecha, usar createdAt como desempate (más nuevos primero)
                 const createdA = new Date(a.createdAt || a.date);
                 const createdB = new Date(b.createdAt || b.date);
                 return createdB - createdA;
@@ -352,10 +362,10 @@ const PortfolioService = {
         
         const payment = paymentsData.payments[paymentIndex];
         
-        // Verificar que no sea un pago migrado del sistema anterior (opcional, puedes quitar esto)
-        // if (payment.migratedFrom) {
-        //     return { success: false, message: 'No se pueden eliminar abonos migrados del sistema anterior' };
-        // }
+        // IMPORTANTE: No se pueden eliminar abonos iniciales, solo borrando la venta
+        if (payment.isInitialPayment === true) {
+            return { success: false, message: 'No se pueden eliminar abonos iniciales. Debe eliminar la venta completa si desea revertir el abono inicial.' };
+        }
         
         // Revertir el efecto en las ventas
         const salesData = db.readJSON('sales.json');
@@ -419,7 +429,7 @@ const PortfolioService = {
     
     /**
      * Obtiene estadísticas de abonos para reportes
-     * Ordenados por fecha del pago (date) primero, luego por fecha de creación (createdAt)
+     * Ordenados por fecha del pago (date) primero (más nuevos primero), luego por fecha de creación (createdAt)
      */
     getPaymentStats(startDate, endDate) {
         const paymentsData = db.readJSON('payments.json');
@@ -437,14 +447,14 @@ const PortfolioService = {
             p.date >= startDate && p.date <= endDate
         );
         
-        // Ordenar por fecha del pago primero, luego por createdAt
+        // Ordenar por fecha del pago primero (más nuevos primero), luego por createdAt
         payments.sort((a, b) => {
             if (a.date !== b.date) {
-                return a.date.localeCompare(b.date);
+                return b.date.localeCompare(a.date); // Más nuevos primero
             }
             const createdA = new Date(a.createdAt || a.date);
             const createdB = new Date(b.createdAt || b.date);
-            return createdA - createdB;
+            return createdB - createdA; // Más nuevos primero
         });
         
         let totalPayments = 0;

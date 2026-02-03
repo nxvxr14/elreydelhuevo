@@ -9,7 +9,8 @@ const Reports = {
         sales: { title: 'Reporte de Ventas', icon: 'fa-shopping-cart', filters: ['dateRange', 'client', 'product', 'paymentMethod'] },
         products: { title: 'Reporte de Productos', icon: 'fa-box', filters: ['dateRange', 'product'] },
         expenses: { title: 'Reporte de Gastos', icon: 'fa-money-bill-wave', filters: ['dateRange'] },
-        credits: { title: 'Reporte de Créditos', icon: 'fa-credit-card', filters: ['dateRange', 'client', 'creditStatus'] },
+        credits: { title: 'Reporte de Créditos', icon: 'fa-credit-card', filters: ['dateRange', 'client'] },
+        payments: { title: 'Reporte de Abonos', icon: 'fa-hand-holding-usd', filters: ['dateRange', 'client'] },
         inventory: { title: 'Reporte de Inventario', icon: 'fa-warehouse', filters: ['dateRange', 'product'] },
         cash: { title: 'Reporte de Cajas', icon: 'fa-calculator', filters: ['dateRange'] }
     },
@@ -21,8 +22,8 @@ const Reports = {
     currentType: 'daily',
     availablePeriods: null,
     charts: { sales: null, expenses: null },
-    pagination: { sales: 1, products: 1, expenses: 1, inventory: 1, credits: 1, cash: 1 },
-    cache: { sales: null, products: null, expenses: null, inventory: null, credits: null, cash: null },
+    pagination: { sales: 1, products: 1, expenses: 1, inventory: 1, credits: 1, payments: 1, cash: 1 },
+    cache: { sales: null, products: null, expenses: null, inventory: null, credits: null, payments: null, cash: null },
     
     // Loaders de reportes (se registran desde cada módulo)
     loaders: {},

@@ -19,7 +19,8 @@
         .urgency-critical { background: var(--danger); color: white; }
         .urgency-warning { background: var(--warning); color: var(--bg-dark); }
         .urgency-attention { background: #f97316; color: white; }
-        .urgency-normal { background: var(--success); color: white; }
+        .urgency-normal { background: #3b82f6; color: white; }
+        .urgency-paid { background: #64748b; color: white; }
         .detail-section { margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-input); border-radius: 8px; }
         .detail-section h4 { margin-bottom: 0.75rem; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
         .detail-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem; }
@@ -273,8 +274,11 @@
                     critical: '+30 días',
                     warning: '15-29 días',
                     attention: '7-14 días',
-                    normal: 'Al día'
+                    normal: 'Recién',
+                    paid: 'Pagado'
                 };
+                
+                const pendingStyle = client.totalPending > 0 ? 'color: var(--warning); font-weight: 600;' : 'color: var(--success);';
                 
                 return `
                     <tr class="client-row" onclick="showClientDetail(${client.clientId})">
@@ -284,10 +288,10 @@
                         </td>
                         <td>${Utils.formatCurrency(client.totalCredit)}</td>
                         <td style="color: var(--success);">${Utils.formatCurrency(client.totalPaid)}</td>
-                        <td style="color: var(--warning); font-weight: 600;">${Utils.formatCurrency(client.totalPending)}</td>
+                        <td style="${pendingStyle}">${Utils.formatCurrency(client.totalPending)}</td>
                         <td>${Utils.formatQuantity(client.totalBaskets)}</td>
-                        <td>${client.daysPastDue}</td>
-                        <td><span class="urgency-badge ${urgencyClass}">${urgencyLabels[client.urgency]}</span></td>
+                        <td>${client.totalPending > 0 ? client.daysPastDue : '-'}</td>
+                        <td><span class="urgency-badge ${urgencyClass}">${urgencyLabels[client.urgency] || 'Recién'}</span></td>
                     </tr>
                 `;
             }).join('');
@@ -386,6 +390,13 @@
                     ).join('<br>');
                 }
                 
+                // No mostrar botón de eliminar si es abono inicial
+                const deleteButton = payment.isInitialPayment 
+                    ? '<span class="text-muted" style="font-size: 0.75rem;" title="Abono inicial - Elimine la venta para revertir">Inicial</span>'
+                    : `<button class="btn btn-sm btn-danger" onclick="deletePayment('${payment.id}')" title="Eliminar abono">
+                        <i class="fas fa-trash"></i>
+                    </button>`;
+                
                 return `
                     <tr>
                         <td>${Utils.formatDateShort(payment.date)}</td>
@@ -393,11 +404,7 @@
                         <td style="color: var(--success); font-weight: 600;">${Utils.formatCurrency(payment.amount)}</td>
                         <td>${methodLabel}</td>
                         <td style="font-size: 0.75rem;">${appliedTo}</td>
-                        <td>
-                            <button class="btn btn-sm btn-danger" onclick="deletePayment('${payment.id}')" title="Eliminar abono">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
+                        <td>${deleteButton}</td>
                     </tr>
                 `;
             }).join('');
