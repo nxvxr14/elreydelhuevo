@@ -7,6 +7,7 @@ let clients = [];
 let categories = [];
 let cart = [];
 let cashStatus = null;
+let defaultWarehouseId = null; // Bodega de la que se retira en ventas de caja
 
 document.addEventListener('DOMContentLoaded', () => {
     loadPOSData();
@@ -30,6 +31,7 @@ async function loadPOSData() {
         products = posResult.products;
         clients = posResult.clients;
         cashStatus = posResult.cashStatus;
+        defaultWarehouseId = posResult.defaultWarehouseId || null;
         categories = categoriesResult.categories;
         
         // Check cash register status
@@ -377,6 +379,16 @@ async function processSale() {
         return;
     }
     
+    // Validar que hay stock en bodega por defecto antes de enviar
+    for (const item of cart) {
+        const product = products.find(p => p.id === item.productId);
+        const available = product ? (product.stock || 0) : 0;
+        if (available < item.quantity) {
+            Utils.showToast(`Stock insuficiente en punto de venta para "${item.name}". Disponible: ${Utils.formatQuantity(available)}`, 'danger');
+            return;
+        }
+    }
+    
     const saleData = {
         clientId: parseInt(clientId),
         items: cart.map(item => ({
@@ -385,7 +397,8 @@ async function processSale() {
             unitPrice: item.unitPrice
         })),
         received: received,
-        note: document.getElementById('saleNote').value.substring(0, 200)
+        note: document.getElementById('saleNote').value.substring(0, 200),
+        warehouseId: defaultWarehouseId
     };
     
     try {

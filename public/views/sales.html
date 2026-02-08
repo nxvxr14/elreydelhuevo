@@ -187,6 +187,13 @@
             <div class="modal-body">
                 <form id="manualSaleForm" onsubmit="event.preventDefault(); saveManualSale();">
                     <div class="form-group">
+                        <label for="saleWarehouse">Bodega de salida *</label>
+                        <select id="saleWarehouse" class="form-control" required onchange="onManualSaleWarehouseChange()">
+                            <option value="">Seleccionar bodega...</option>
+                        </select>
+                        <small class="text-muted">De esta bodega se descontará el stock.</small>
+                    </div>
+                    <div class="form-group">
                         <label for="saleClient">Cliente *</label>
                         <select id="saleClient" class="form-control" required>
                             <option value="">Seleccionar cliente...</option>
@@ -351,6 +358,7 @@
         let sales = [];
         let clients = [];
         let products = [];
+        let warehouses = [];
         let currentPage = 1;
 
         document.addEventListener('DOMContentLoaded', async () => {
@@ -360,13 +368,15 @@
 
         async function loadFilters() {
             try {
-                const [clientsResult, productsResult] = await Promise.all([
+                const [clientsResult, productsResult, warehousesResult] = await Promise.all([
                     Utils.fetch('/api/clients'),
-                    Utils.fetch('/api/products')
+                    Utils.fetch('/api/products'),
+                    Utils.fetch('/api/warehouses')
                 ]);
                 
                 clients = clientsResult.clients;
                 products = productsResult.products;
+                warehouses = warehousesResult.warehouses || [];
                 
                 const clientSelect = document.getElementById('filterClient');
                 clients.forEach(c => {
@@ -672,6 +682,15 @@
             document.getElementById('saleInitialTransferType').value = 'nequi';
             togglePaymentFields();
             
+            // Populate warehouse select (bodega de salida)
+            const warehouseSelect = document.getElementById('saleWarehouse');
+            warehouseSelect.innerHTML = '<option value="">Seleccionar bodega...</option>';
+            warehouses.forEach(w => {
+                warehouseSelect.innerHTML += `<option value="${w.id}">${Utils.escapeHtml(w.name)}${w.isDefault ? ' (Por defecto)' : ''}</option>`;
+            });
+            const defaultWh = warehouses.find(w => w.isDefault);
+            if (defaultWh) warehouseSelect.value = defaultWh.id;
+            
             // Populate client select
             const clientSelect = document.getElementById('saleClient');
             clientSelect.innerHTML = '<option value="">Seleccionar cliente...</option>';
@@ -679,7 +698,7 @@
                 clientSelect.innerHTML += `<option value="${c.id}">${Utils.escapeHtml(c.name)}</option>`;
             });
             
-            // Populate products datalist
+            // Populate products datalist (stock se valida por bodega al agregar)
             const productsList = document.getElementById('productsList');
             productsList.innerHTML = '';
             products.forEach(p => {
@@ -687,7 +706,6 @@
                 option.value = p.name;
                 option.dataset.id = p.id;
                 option.dataset.price = p.price;
-                option.dataset.stock = p.stock;
                 productsList.appendChild(option);
             });
             
@@ -698,6 +716,11 @@
             
             renderManualSaleItems();
             document.getElementById('manualSaleModal').classList.add('active');
+        }
+        
+        function onManualSaleWarehouseChange() {
+            // Al cambiar bodega, actualizar maxStock de los ítems ya agregados (opcional: recalculamos al guardar en backend)
+            // Por ahora solo permitimos agregar con el stock de la bodega seleccionada
         }
         
         function togglePaymentFields() {
@@ -804,13 +827,17 @@
             document.getElementById('manualSaleModal').classList.remove('active');
         }
         
-        function addProductToManualSale() {
+        async function addProductToManualSale() {
+            const warehouseId = document.getElementById('saleWarehouse').value;
+            if (!warehouseId) {
+                Utils.showToast('Seleccione la bodega de salida', 'warning');
+                return;
+            }
+            
             const searchInput = document.getElementById('addProductSearch');
             const searchValue = searchInput.value.trim().toLowerCase();
             
-            // Find product by name
             const product = products.find(p => p.name.toLowerCase() === searchValue);
-            
             if (!product) {
                 Utils.showToast('Seleccione un producto válido', 'warning');
                 return;
@@ -818,11 +845,9 @@
             
             const productId = product.id;
             const productName = product.name;
-            const stock = product.stock || 0;
             
             const qtyStr = document.getElementById('addProductQty').value;
             const quantity = Utils.parseQuantity(qtyStr);
-            
             if (!Utils.isValidQuantity(quantity) || quantity <= 0) {
                 Utils.showToast('Ingrese una cantidad válida (solo se permite ,5 como decimal)', 'warning');
                 return;
@@ -830,25 +855,30 @@
             
             const priceStr = document.getElementById('addProductPrice').value;
             let unitPrice = Utils.parseNumber(priceStr);
+            if (!unitPrice) unitPrice = product.price || 0;
             
-            // If no price entered, use product default price
-            if (!unitPrice) {
-                unitPrice = product.price || 0;
+            let stock = 0;
+            try {
+                const stockRes = await Utils.fetch(`/api/products/${productId}/stock?quantity=0&warehouseId=${warehouseId}`);
+                stock = stockRes.currentStock != null ? stockRes.currentStock : 0;
+            } catch (e) {
+                Utils.showToast('No se pudo verificar el stock en la bodega', 'danger');
+                return;
             }
             
-            // Check if product already in list
             const existingItem = manualSaleItems.find(item => item.productId === productId);
             if (existingItem) {
                 const newQty = existingItem.quantity + quantity;
                 if (newQty > stock) {
-                    Utils.showToast(`Stock máximo disponible: ${Utils.formatQuantity(stock)}`, 'warning');
+                    Utils.showToast(`Stock máximo en esta bodega: ${Utils.formatQuantity(stock)}`, 'warning');
                     return;
                 }
                 existingItem.quantity = newQty;
                 existingItem.unitPrice = unitPrice;
+                existingItem.maxStock = stock;
             } else {
                 if (quantity > stock) {
-                    Utils.showToast(`Stock máximo disponible: ${Utils.formatQuantity(stock)}`, 'warning');
+                    Utils.showToast(`Stock máximo en esta bodega: ${Utils.formatQuantity(stock)}`, 'warning');
                     return;
                 }
                 manualSaleItems.push({
@@ -860,12 +890,10 @@
                 });
             }
             
-            // Clear inputs
             searchInput.value = '';
             document.getElementById('addProductQty').value = '';
             document.getElementById('addProductPrice').value = '';
             selectedProductData = null;
-            
             renderManualSaleItems();
         }
         
@@ -938,23 +966,26 @@
         }
         
         async function saveManualSale() {
+            const warehouseId = document.getElementById('saleWarehouse').value;
+            if (!warehouseId) {
+                Utils.showToast('Seleccione la bodega de salida', 'warning');
+                return;
+            }
             const clientId = document.getElementById('saleClient').value;
-            
             if (!clientId) {
                 Utils.showToast('Seleccione un cliente', 'warning');
                 return;
             }
-            
             if (manualSaleItems.length === 0) {
                 Utils.showToast('Agregue al menos un producto', 'warning');
                 return;
             }
-            
             const total = manualSaleItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
             const paymentMethod = document.getElementById('salePaymentMethod').value;
             
             const saleData = {
                 clientId: parseInt(clientId),
+                warehouseId: parseInt(warehouseId),
                 items: manualSaleItems.map(item => ({
                     productId: item.productId,
                     quantity: item.quantity,

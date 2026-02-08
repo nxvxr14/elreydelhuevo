@@ -94,13 +94,15 @@ const ProductController = {
     },
     
     /**
-     * Verifica stock de un producto
+     * Verifica stock de un producto (opcional por bodega: ?warehouseId=1)
      */
     checkStock(req, res) {
         const { id } = req.params;
-        const { quantity } = req.query;
+        const { quantity, warehouseId } = req.query;
+        const qty = parseInt(quantity) || 1;
+        const whId = warehouseId ? parseInt(warehouseId) : null;
         
-        const result = ProductService.checkStock(id, parseInt(quantity) || 1);
+        const result = ProductService.checkStock(id, qty, whId);
         return res.json(result);
     }
 };

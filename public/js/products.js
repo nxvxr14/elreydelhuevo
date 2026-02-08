@@ -59,6 +59,7 @@ async function loadProducts() {
         const result = await Utils.fetch('/api/products');
         allProducts = result.products;
         
+        updateProductsTotalUnits();
         filterProducts();
     } catch (error) {
         console.error('Error cargando productos:', error);
@@ -66,6 +67,12 @@ async function loadProducts() {
     } finally {
         Utils.hideLoading();
     }
+}
+
+function updateProductsTotalUnits() {
+    const total = allProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
+    const el = document.getElementById('productsTotalUnits');
+    if (el) el.textContent = Utils.formatQuantity(total);
 }
 
 function filterProducts() {

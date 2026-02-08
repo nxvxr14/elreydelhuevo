@@ -127,7 +127,17 @@ const SaleService = {
             return { success: false, message: 'Debe seleccionar un cliente' };
         }
         
-        // Verificar stock de todos los productos antes de proceder
+        // Bodega: manual debe enviar warehouseId; POS siempre usa la por defecto
+        const defaultWarehouse = ProductService.getDefaultWarehouse();
+        let warehouseId = saleData.warehouseId ? parseInt(saleData.warehouseId) : null;
+        if (!warehouseId) {
+            warehouseId = defaultWarehouse ? defaultWarehouse.id : null;
+        }
+        if (source === 'dashboard' && !warehouseId) {
+            return { success: false, message: 'Debe seleccionar la bodega de salida para la venta manual' };
+        }
+        
+        // Verificar stock de todos los productos antes de proceder (en la bodega indicada)
         for (const item of saleData.items) {
             // Validar que la cantidad sea válida (entero o .5)
             if (!db.isValidQuantity(item.quantity)) {
@@ -138,7 +148,7 @@ const SaleService = {
                 };
             }
             
-            const stockCheck = ProductService.checkStock(item.productId, item.quantity);
+            const stockCheck = ProductService.checkStock(item.productId, item.quantity, warehouseId);
             if (!stockCheck.available) {
                 const product = ProductService.getById(item.productId);
                 return { 
@@ -214,12 +224,13 @@ const SaleService = {
             pendingAmount: pendingAmount,
             status: status, // 'paid' o 'pending'
             payments: payments,
+            warehouseId: warehouseId || null, // bodega de la que se descontó
             createdAt: db.getCurrentDateTime()
         };
         
-        // Descontar stock
+        // Descontar stock en la bodega indicada
         for (const item of items) {
-            const result = ProductService.updateStock(item.productId, -item.quantity);
+            const result = ProductService.updateStock(item.productId, -item.quantity, warehouseId);
             if (!result.success) {
                 return { success: false, message: `Error al actualizar stock: ${result.message}` };
             }
@@ -281,20 +292,22 @@ const SaleService = {
         }
         
         const oldSale = data.sales[index];
+        const defaultWarehouse = ProductService.getDefaultWarehouse();
+        const warehouseId = oldSale.warehouseId || (defaultWarehouse ? defaultWarehouse.id : null);
         
-        // Restaurar stock anterior
+        // Restaurar stock anterior en la misma bodega
         for (const item of oldSale.items) {
-            ProductService.updateStock(item.productId, item.quantity);
+            ProductService.updateStock(item.productId, item.quantity, warehouseId);
         }
         
-        // Verificar nuevo stock
+        // Verificar nuevo stock en la misma bodega
         if (saleData.items) {
             for (const item of saleData.items) {
                 // Validar que la cantidad sea válida (entero o .5)
                 if (!db.isValidQuantity(item.quantity)) {
                     // Revertir restauración de stock
                     for (const oldItem of oldSale.items) {
-                        ProductService.updateStock(oldItem.productId, -oldItem.quantity);
+                        ProductService.updateStock(oldItem.productId, -oldItem.quantity, warehouseId);
                     }
                     return { 
                         success: false, 
@@ -302,11 +315,11 @@ const SaleService = {
                     };
                 }
                 
-                const stockCheck = ProductService.checkStock(item.productId, item.quantity);
+                const stockCheck = ProductService.checkStock(item.productId, item.quantity, warehouseId);
                 if (!stockCheck.available) {
                     // Revertir restauración de stock
                     for (const oldItem of oldSale.items) {
-                        ProductService.updateStock(oldItem.productId, -oldItem.quantity);
+                        ProductService.updateStock(oldItem.productId, -oldItem.quantity, warehouseId);
                     }
                     return { 
                         success: false, 
@@ -330,9 +343,9 @@ const SaleService = {
             };
         });
         
-        // Descontar nuevo stock
+        // Descontar nuevo stock en la misma bodega
         for (const item of processedItems) {
-            ProductService.updateStock(item.productId, -item.quantity);
+            ProductService.updateStock(item.productId, -item.quantity, warehouseId);
         }
         
         // Actualizar venta
@@ -366,10 +379,12 @@ const SaleService = {
             return { success: false, message: 'Venta no encontrada' };
         }
         
-        // Restaurar stock
+        // Restaurar stock en la bodega de la venta
         const sale = data.sales[index];
+        const defaultWarehouse = ProductService.getDefaultWarehouse();
+        const warehouseId = sale.warehouseId || (defaultWarehouse ? defaultWarehouse.id : null);
         for (const item of sale.items) {
-            ProductService.updateStock(item.productId, item.quantity);
+            ProductService.updateStock(item.productId, item.quantity, warehouseId);
         }
         
         data.sales.splice(index, 1);

@@ -6,24 +6,37 @@ const CashRegisterService = require('../services/cashRegisterService');
 
 /**
  * Controlador del POS
+ * Las ventas de caja siempre retiran de la bodega por defecto (Bodega Punto de Venta).
  */
 const POSController = {
     /**
-     * Obtiene los datos necesarios para el POS
+     * Obtiene los datos necesarios para el POS.
+     * Productos con stock = stock en bodega por defecto (solo se muestran/venden desde ahí).
      */
     getData(req, res) {
+        const defaultWarehouse = ProductService.getDefaultWarehouse();
+        const warehouseId = defaultWarehouse ? defaultWarehouse.id : null;
+        
         const products = ProductService.getAll();
         const clients = ClientService.getAll();
         const cashStatus = CashRegisterService.getStatus();
         
-        // Solo productos con stock disponible
-        const availableProducts = products.filter(p => p.stock > 0);
+        // Productos con stock en la bodega por defecto; stock mostrado = stock en esa bodega
+        const availableProducts = products
+            .map(p => {
+                const stockInWarehouse = warehouseId && p.warehouseStock
+                    ? (p.warehouseStock[warehouseId] || 0)
+                    : (p.stock || 0);
+                return { ...p, stock: stockInWarehouse };
+            })
+            .filter(p => p.stock > 0);
         
         return res.json({
             success: true,
             products: availableProducts,
             clients,
-            cashStatus
+            cashStatus,
+            defaultWarehouseId: warehouseId
         });
     },
     
@@ -52,10 +65,10 @@ const POSController = {
     },
     
     /**
-     * Verifica el stock de un producto
+     * Verifica el stock de un producto (POS usa bodega por defecto)
      */
     checkStock(req, res) {
-        const { productId, quantity } = req.query;
+        const { productId, quantity, warehouseId } = req.query;
         
         if (!productId) {
             return res.status(400).json({
@@ -64,7 +77,9 @@ const POSController = {
             });
         }
         
-        const result = ProductService.checkStock(productId, parseInt(quantity) || 1);
+        const defaultWarehouse = ProductService.getDefaultWarehouse();
+        const whId = warehouseId ? parseInt(warehouseId) : (defaultWarehouse ? defaultWarehouse.id : null);
+        const result = ProductService.checkStock(productId, parseInt(quantity) || 1, whId);
         return res.json(result);
     },
     
