@@ -1,6 +1,54 @@
 const db = require('../utils/database');
 const ProductService = require('./productService');
 
+function getPaymentsData() {
+    const data = db.readJSON('payments.json');
+    if (!data || !Array.isArray(data.payments)) {
+        return { payments: [] };
+    }
+    return data;
+}
+
+function buildSalePaymentRecord({ sale, amount, paymentMethod, transferType, note, date, isInitialPayment = false }) {
+    const paymentId = db.generateReference('P');
+    const paymentAmount = Math.round(parseFloat(amount) || 0);
+
+    const record = {
+        id: paymentId,
+        reference: paymentId,
+        clientId: sale.clientId,
+        amount: paymentAmount,
+        paymentMethod: paymentMethod,
+        transferType: paymentMethod === 'transfer' ? transferType : null,
+        note: note ? note.substring(0, 200) : '',
+        date: date || db.getCurrentDate(),
+        appliedToSales: [{
+            saleId: sale.id,
+            saleReference: sale.reference,
+            amountApplied: paymentAmount,
+            newStatus: sale.status
+        }],
+        createdAt: db.getCurrentDateTime()
+    };
+
+    if (isInitialPayment) {
+        record.isInitialPayment = true;
+    }
+
+    return record;
+}
+
+function recordSalePayment(paymentRecord) {
+    const paymentsData = getPaymentsData();
+    paymentsData.payments.push(paymentRecord);
+
+    if (!db.writeJSON('payments.json', paymentsData)) {
+        return { success: false, message: 'Error al guardar el abono en el historial' };
+    }
+
+    return { success: true, payment: paymentRecord };
+}
+
 /**
  * Servicio de ventas
  */
@@ -89,8 +137,11 @@ const SaleService = {
         const clients = clientsData ? clientsData.clients : [];
         const productsData = db.readJSON('products.json');
         const products = productsData ? productsData.products : [];
+        const warehousesData = db.readJSON('warehouses.json');
+        const warehouses = warehousesData ? warehousesData.warehouses : [];
         
         const client = clients.find(c => c.id === sale.clientId);
+        const warehouse = warehouses.find(w => w.id === sale.warehouseId);
         
         const itemsWithDetails = sale.items.map(item => {
             const product = products.find(p => p.id === item.productId);
@@ -103,6 +154,7 @@ const SaleService = {
         return {
             ...sale,
             clientName: client ? client.name : 'Cliente eliminado',
+            warehouseName: warehouse ? warehouse.name : (sale.warehouseId ? 'Bodega eliminada' : null),
             items: itemsWithDetails
         };
     },
@@ -170,6 +222,8 @@ const SaleService = {
                 subtotal: Math.round(subtotal)
             };
         });
+
+        const totalRounded = Math.round(total);
         
         // Generar referencia
         const reference = db.generateReference('V');
@@ -181,19 +235,28 @@ const SaleService = {
         const transferType = paymentMethod === 'transfer' ? (saleData.transferType || 'nequi') : null;
         
         // For credit sales, calculate paid and pending amounts
-        let paidAmount = Math.round(total);
+        let paidAmount = totalRounded;
         let pendingAmount = 0;
         let status = 'paid';
         let payments = [];
         
         if (paymentMethod === 'credit') {
             // Initial payment for credit (can be 0)
-            const initialPayment = Math.round(parseFloat(saleData.initialPayment || 0));
+            const initialPaymentRaw = parseFloat(saleData.initialPayment || 0);
+            const initialPayment = Math.round(isNaN(initialPaymentRaw) ? 0 : initialPaymentRaw);
             const initialPaymentMethod = saleData.initialPaymentMethod || 'cash';
             const initialTransferType = initialPaymentMethod === 'transfer' ? (saleData.initialTransferType || 'nequi') : null;
+
+            if (initialPayment < 0) {
+                return { success: false, message: 'El abono inicial no puede ser negativo' };
+            }
+
+            if (initialPayment > totalRounded) {
+                return { success: false, message: 'El abono inicial no puede ser mayor al total' };
+            }
             
             paidAmount = initialPayment;
-            pendingAmount = Math.round(total) - paidAmount;
+            pendingAmount = totalRounded - paidAmount;
             status = pendingAmount > 0 ? 'pending' : 'paid';
             
             if (initialPayment > 0) {
@@ -212,7 +275,7 @@ const SaleService = {
             reference,
             clientId: parseInt(saleData.clientId),
             items,
-            total: Math.round(total),
+            total: totalRounded,
             received: Math.round(parseFloat(saleData.received || total)),
             change: Math.round(parseFloat(saleData.received || total) - total),
             note: saleData.note ? saleData.note.substring(0, 200) : '',
@@ -229,49 +292,51 @@ const SaleService = {
         };
         
         // Descontar stock en la bodega indicada
+        const stockUpdates = [];
         for (const item of items) {
             const result = ProductService.updateStock(item.productId, -item.quantity, warehouseId);
             if (!result.success) {
+                for (const applied of stockUpdates) {
+                    ProductService.updateStock(applied.productId, applied.quantity, warehouseId);
+                }
                 return { success: false, message: `Error al actualizar stock: ${result.message}` };
             }
+            stockUpdates.push({ productId: item.productId, quantity: item.quantity });
         }
         
         data.sales.push(newSale);
         
         if (!db.writeJSON('sales.json', data)) {
+            for (const applied of stockUpdates) {
+                ProductService.updateStock(applied.productId, applied.quantity, warehouseId);
+            }
             return { success: false, message: 'Error al guardar la venta' };
         }
         
         // Si es venta a crédito con abono inicial, registrar también en payments.json
         if (paymentMethod === 'credit' && payments.length > 0) {
             const initialPaymentData = payments[0];
-            let paymentsData = db.readJSON('payments.json');
-            if (!paymentsData) {
-                paymentsData = { payments: [] };
-            }
-            
-            const paymentId = db.generateReference('P');
-            const newPaymentRecord = {
-                id: paymentId,
-                reference: paymentId,
-                clientId: parseInt(saleData.clientId),
+            const paymentRecord = buildSalePaymentRecord({
+                sale: newSale,
                 amount: initialPaymentData.amount,
                 paymentMethod: initialPaymentData.paymentMethod,
                 transferType: initialPaymentData.transferType,
-                note: 'Abono inicial',
+                note: initialPaymentData.note || 'Abono inicial',
                 date: initialPaymentData.date,
-                appliedToSales: [{
-                    saleId: newSale.id,
-                    saleReference: newSale.reference,
-                    amountApplied: initialPaymentData.amount,
-                    newStatus: newSale.status
-                }],
-                createdAt: db.getCurrentDateTime(),
                 isInitialPayment: true
-            };
-            
-            paymentsData.payments.push(newPaymentRecord);
-            db.writeJSON('payments.json', paymentsData);
+            });
+            const paymentResult = recordSalePayment(paymentRecord);
+            if (!paymentResult.success) {
+                data.sales = data.sales.filter(sale => sale.id !== newSale.id);
+                const salesRollback = db.writeJSON('sales.json', data);
+                for (const applied of stockUpdates) {
+                    ProductService.updateStock(applied.productId, applied.quantity, warehouseId);
+                }
+                if (!salesRollback) {
+                    return { success: false, message: 'Error al revertir la venta después del fallo del abono' };
+                }
+                return { success: false, message: paymentResult.message };
+            }
         }
         
         return { success: true, sale: newSale };
@@ -383,16 +448,79 @@ const SaleService = {
         const sale = data.sales[index];
         const defaultWarehouse = ProductService.getDefaultWarehouse();
         const warehouseId = sale.warehouseId || (defaultWarehouse ? defaultWarehouse.id : null);
-        for (const item of sale.items) {
-            ProductService.updateStock(item.productId, item.quantity, warehouseId);
+        const paymentsData = db.readJSON('payments.json');
+        let updatedPaymentsData = null;
+        let paymentsUpdated = false;
+
+        if (paymentsData && Array.isArray(paymentsData.payments)) {
+            updatedPaymentsData = {
+                ...paymentsData,
+                payments: []
+            };
+
+            paymentsData.payments.forEach(payment => {
+                if (!payment.appliedToSales || payment.appliedToSales.length === 0) {
+                    updatedPaymentsData.payments.push(payment);
+                    return;
+                }
+
+                const filteredApplied = payment.appliedToSales.filter(a => a.saleId !== sale.id);
+                if (filteredApplied.length === payment.appliedToSales.length) {
+                    updatedPaymentsData.payments.push(payment);
+                    return;
+                }
+
+                paymentsUpdated = true;
+
+                if (filteredApplied.length === 0) {
+                    return;
+                }
+
+                const remainingAmount = filteredApplied.reduce((sum, entry) => sum + (entry.amountApplied || 0), 0);
+                if (remainingAmount <= 0) {
+                    return;
+                }
+
+                updatedPaymentsData.payments.push({
+                    ...payment,
+                    amount: Math.round(remainingAmount),
+                    appliedToSales: filteredApplied
+                });
+            });
         }
-        
-        data.sales.splice(index, 1);
-        
+
+        const stockRestores = [];
+        for (const item of sale.items) {
+            const result = ProductService.updateStock(item.productId, item.quantity, warehouseId);
+            if (!result.success) {
+                for (const applied of stockRestores) {
+                    ProductService.updateStock(applied.productId, -applied.quantity, warehouseId);
+                }
+                return { success: false, message: `Error al restaurar stock: ${result.message}` };
+            }
+            stockRestores.push({ productId: item.productId, quantity: item.quantity });
+        }
+
+        const removedSale = data.sales.splice(index, 1)[0];
+
         if (!db.writeJSON('sales.json', data)) {
+            for (const applied of stockRestores) {
+                ProductService.updateStock(applied.productId, -applied.quantity, warehouseId);
+            }
             return { success: false, message: 'Error al eliminar la venta' };
         }
-        
+
+        if (paymentsUpdated) {
+            if (!db.writeJSON('payments.json', updatedPaymentsData)) {
+                data.sales.splice(index, 0, removedSale);
+                db.writeJSON('sales.json', data);
+                for (const applied of stockRestores) {
+                    ProductService.updateStock(applied.productId, -applied.quantity, warehouseId);
+                }
+                return { success: false, message: 'Error al actualizar los abonos de la venta eliminada' };
+            }
+        }
+
         return { success: true, message: 'Venta eliminada correctamente' };
     },
     
@@ -475,6 +603,21 @@ const SaleService = {
         
         if (!db.writeJSON('sales.json', data)) {
             return { success: false, message: 'Error al guardar el abono' };
+        }
+
+        const paymentRecord = buildSalePaymentRecord({
+            sale: sale,
+            amount: paymentAmount,
+            paymentMethod: method,
+            transferType: tType,
+            note: payment.note,
+            date: payment.date
+        });
+        const paymentResult = recordSalePayment(paymentRecord);
+        if (!paymentResult.success) {
+            data.sales[index] = oldSale;
+            db.writeJSON('sales.json', data);
+            return { success: false, message: paymentResult.message };
         }
         
         return { success: true, sale: sale, payment: payment };

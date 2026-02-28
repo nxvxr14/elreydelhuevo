@@ -50,10 +50,13 @@ const InventoryController = {
                 message: 'Entrada no encontrada'
             });
         }
-        
+
+        // Enriquecer con nombres de producto/bodegas y motivo
+        const [entryWithDetails] = InventoryService.getAllWithDetails().filter(e => e.id === entry.id);
+
         return res.json({
             success: true,
-            entry
+            entry: entryWithDetails || entry
         });
     },
     

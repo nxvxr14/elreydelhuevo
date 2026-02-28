@@ -417,13 +417,13 @@
                     quantityPrefix = '-';
                     warehouseInfo = entry.warehouseName || 'N/A';
                     detailInfo = EXIT_REASONS[entry.reason] || entry.reason || '';
-                } else if (type === 'transfer') {
-                    typeClass = 'badge-transfer';
-                    typeLabel = 'Traslado';
-                    quantityPrefix = '';
-                    warehouseInfo = `${entry.fromWarehouseName || 'N/A'} <span class="transfer-arrow">→</span> ${entry.toWarehouseName || 'N/A'}`;
-                    detailInfo = '';
-                }
+                 } else if (type === 'transfer') {
+                     typeClass = 'badge-transfer';
+                     typeLabel = 'Traslado';
+                     quantityPrefix = '';
+                     warehouseInfo = `${entry.fromWarehouseName || 'N/A'} <span class="transfer-arrow">→</span> ${entry.toWarehouseName || 'N/A'}`;
+                     detailInfo = Utils.escapeHtml(entry.note || '');
+                 }
                 
                 return `
                     <tr>
@@ -683,12 +683,13 @@
                     const warehouse = warehouses.find(w => w.id === entry.warehouseId);
                     detailHtml += `<p><strong>Bodega:</strong> ${warehouse ? Utils.escapeHtml(warehouse.name) : 'N/A'}</p>`;
                     detailHtml += `<p><strong>Motivo:</strong> ${EXIT_REASONS[entry.reason] || entry.reason}</p>`;
-                } else if (type === 'transfer') {
-                    const fromW = warehouses.find(w => w.id === entry.fromWarehouseId);
-                    const toW = warehouses.find(w => w.id === entry.toWarehouseId);
-                    detailHtml += `<p><strong>Bodega Origen:</strong> ${fromW ? Utils.escapeHtml(fromW.name) : 'N/A'}</p>`;
-                    detailHtml += `<p><strong>Bodega Destino:</strong> ${toW ? Utils.escapeHtml(toW.name) : 'N/A'}</p>`;
-                }
+                 } else if (type === 'transfer') {
+                     const fromW = warehouses.find(w => w.id === entry.fromWarehouseId);
+                     const toW = warehouses.find(w => w.id === entry.toWarehouseId);
+                     detailHtml += `<p><strong>Bodega Origen:</strong> ${fromW ? Utils.escapeHtml(fromW.name) : 'N/A'}</p>`;
+                     detailHtml += `<p><strong>Bodega Destino:</strong> ${toW ? Utils.escapeHtml(toW.name) : 'N/A'}</p>`;
+                     detailHtml += `<p><strong>Motivo:</strong> ${Utils.escapeHtml(entry.note || '')}</p>`;
+                 }
                 
                 if (entry.note) {
                     detailHtml += `<p><strong>Nota:</strong> ${Utils.escapeHtml(entry.note)}</p>`;

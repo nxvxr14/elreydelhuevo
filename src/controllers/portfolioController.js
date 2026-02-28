@@ -9,7 +9,13 @@ const PortfolioController = {
      */
     getClientsWithCredits(req, res) {
         try {
-            const clients = PortfolioService.getClientsWithCredits();
+            const { startDate, endDate } = req.query;
+            const options = {};
+            if (startDate && endDate) {
+                options.startDate = startDate;
+                options.endDate = endDate;
+            }
+            const clients = PortfolioService.getClientsWithCredits(options);
             const summary = PortfolioService.getPortfolioSummary();
             return res.json({ success: true, clients, summary });
         } catch (error) {
@@ -23,12 +29,19 @@ const PortfolioController = {
      */
     getClientPortfolio(req, res) {
         try {
-            const portfolio = PortfolioService.getClientPortfolio(req.params.clientId);
+            const { startDate, endDate } = req.query;
+            const options = {};
+            if (startDate && endDate) {
+                options.startDate = startDate;
+                options.endDate = endDate;
+            }
+            
+            const portfolio = PortfolioService.getClientPortfolio(req.params.clientId, options);
             if (!portfolio) {
                 return res.status(404).json({ success: false, message: 'Cliente no encontrado' });
             }
             
-            const paymentHistory = PortfolioService.getClientPaymentHistory(req.params.clientId);
+            const paymentHistory = PortfolioService.getClientPaymentHistory(req.params.clientId, options);
             
             return res.json({
                 success: true,
@@ -98,7 +111,7 @@ const PortfolioController = {
                 return res.status(400).json({ success: false, message: 'Se requieren fechas de inicio y fin' });
             }
             
-            const stats = PortfolioService.getPaymentStats(startDate, endDate);
+            const stats = PortfolioService.getPaymentStats(startDate, endDate, { onlyPortfolio: true, excludeInitial: true });
             return res.json({ success: true, ...stats });
         } catch (error) {
             console.error('Error obteniendo estadísticas de abonos:', error);

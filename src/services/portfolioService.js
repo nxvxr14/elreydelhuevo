@@ -4,6 +4,40 @@ const db = require('../utils/database');
  * Servicio de Cartera - Gestión de créditos y abonos por cliente
  * Los abonos se aplican automáticamente a las facturas más antiguas (FIFO)
  */
+function buildPortfolioPaymentIndex() {
+    const salesData = db.readJSON('sales.json');
+    const sales = salesData ? salesData.sales : [];
+    const index = {};
+
+    sales.forEach(sale => {
+        if (!sale.payments || sale.payments.length === 0) return;
+        sale.payments.forEach(payment => {
+            if (!payment || payment.fromPortfolio !== true) return;
+            if (!index[sale.id]) index[sale.id] = [];
+            index[sale.id].push({
+                amount: Math.round(parseFloat(payment.amount) || 0),
+                date: payment.date || sale.date
+            });
+        });
+    });
+
+    return index;
+}
+
+function isPortfolioPayment(payment, portfolioIndex) {
+    if (!payment) return false;
+    if (payment.isInitialPayment === true) return false;
+    if (payment.fromPortfolio === true) return true;
+    if (!payment.appliedToSales || payment.appliedToSales.length === 0) return false;
+
+    return payment.appliedToSales.every(applied => {
+        const salePayments = portfolioIndex[applied.saleId];
+        if (!salePayments || salePayments.length === 0) return false;
+        const amountApplied = Math.round(parseFloat(applied.amountApplied) || 0);
+        return salePayments.some(p => p.amount === amountApplied && (!payment.date || p.date === payment.date));
+    });
+}
+
 const PortfolioService = {
     /**
      * Obtiene todas las ventas a crédito
@@ -36,8 +70,12 @@ const PortfolioService = {
     
     /**
      * Obtiene resumen de cartera por cliente
+     * @param {number} clientId - ID del cliente
+     * @param {object} options - Opciones de filtrado
+     * @param {string} options.startDate - Fecha inicio (YYYY-MM-DD) para filtrar créditos
+     * @param {string} options.endDate - Fecha fin (YYYY-MM-DD) para filtrar créditos
      */
-    getClientPortfolio(clientId) {
+    getClientPortfolio(clientId, options = {}) {
         const clientsData = db.readJSON('clients.json');
         const client = clientsData?.clients?.find(c => c.id === parseInt(clientId));
         
@@ -45,7 +83,13 @@ const PortfolioService = {
             return null;
         }
         
-        const creditSales = this.getClientCreditSales(clientId);
+        let creditSales = this.getClientCreditSales(clientId);
+        
+        // Filtrar por rango de fechas si se proporcionan
+        if (options.startDate && options.endDate) {
+            creditSales = creditSales.filter(s => s.date >= options.startDate && s.date <= options.endDate);
+        }
+        
         const productsData = db.readJSON('products.json');
         const products = productsData ? productsData.products : [];
         
@@ -95,11 +139,19 @@ const PortfolioService = {
     
     /**
      * Obtiene lista de clientes con créditos
+     * @param {object} options - Opciones de filtrado
+     * @param {string} options.startDate - Fecha inicio (YYYY-MM-DD) para filtrar por fecha de venta
+     * @param {string} options.endDate - Fecha fin (YYYY-MM-DD) para filtrar por fecha de venta
      */
-    getClientsWithCredits() {
+    getClientsWithCredits(options = {}) {
         const clientsData = db.readJSON('clients.json');
         const clients = clientsData ? clientsData.clients : [];
-        const creditSales = this.getAllCreditSales();
+        let creditSales = this.getAllCreditSales();
+        
+        // Filtrar por rango de fechas de la venta si se proporcionan
+        if (options.startDate && options.endDate) {
+            creditSales = creditSales.filter(s => s.date >= options.startDate && s.date <= options.endDate);
+        }
         
         // Agrupar por cliente
         const clientCredits = {};
@@ -196,14 +248,26 @@ const PortfolioService = {
     /**
      * Obtiene el historial de abonos de un cliente
      * Ordenados por fecha del pago (date) primero (más nuevos primero), luego por fecha de creación (createdAt)
+     * @param {number} clientId - ID del cliente
+     * @param {object} options - Opciones de filtrado
+     * @param {string} options.startDate - Fecha inicio (YYYY-MM-DD)
+     * @param {string} options.endDate - Fecha fin (YYYY-MM-DD)
      */
-    getClientPaymentHistory(clientId) {
+    getClientPaymentHistory(clientId, options = {}) {
         const paymentsData = db.readJSON('payments.json');
         if (!paymentsData || !paymentsData.payments) return [];
+        const portfolioIndex = buildPortfolioPaymentIndex();
         
-        return paymentsData.payments
+        let payments = paymentsData.payments
             .filter(p => p.clientId === parseInt(clientId))
-            .sort((a, b) => {
+            .filter(p => isPortfolioPayment(p, portfolioIndex));
+        
+        // Filtrar por rango de fechas si se proporcionan
+        if (options.startDate && options.endDate) {
+            payments = payments.filter(p => p.date >= options.startDate && p.date <= options.endDate);
+        }
+        
+        return payments.sort((a, b) => {
                 // Ordenar por fecha del pago primero (más nuevos primero)
                 if (a.date !== b.date) {
                     return b.date.localeCompare(a.date);
@@ -327,6 +391,7 @@ const PortfolioService = {
             note: note || '',
             date: db.getCurrentDate(),
             appliedToSales: appliedToSales,
+            fromPortfolio: true,
             createdAt: db.getCurrentDateTime()
         };
         
@@ -431,7 +496,7 @@ const PortfolioService = {
      * Obtiene estadísticas de abonos para reportes
      * Ordenados por fecha del pago (date) primero (más nuevos primero), luego por fecha de creación (createdAt)
      */
-    getPaymentStats(startDate, endDate) {
+    getPaymentStats(startDate, endDate, options = {}) {
         const paymentsData = db.readJSON('payments.json');
         if (!paymentsData || !paymentsData.payments) {
             return {
@@ -446,6 +511,15 @@ const PortfolioService = {
         let payments = paymentsData.payments.filter(p => 
             p.date >= startDate && p.date <= endDate
         );
+
+        if (options.excludeInitial === true) {
+            payments = payments.filter(p => p.isInitialPayment !== true);
+        }
+
+        if (options.onlyPortfolio) {
+            const portfolioIndex = buildPortfolioPaymentIndex();
+            payments = payments.filter(p => isPortfolioPayment(p, portfolioIndex));
+        }
         
         // Ordenar por fecha del pago primero (más nuevos primero), luego por createdAt
         payments.sort((a, b) => {

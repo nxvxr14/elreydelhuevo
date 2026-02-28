@@ -101,26 +101,30 @@ const ReportController = {
         const entries = InventoryService.getFiltered(filters);
         const stats = InventoryService.getStats(startDate, endDate);
         
-        // Remover notas para el reporte
-        const entriesWithoutNotes = entries.map(entry => {
-            const { note, ...entryWithoutNote } = entry;
-            return entryWithoutNote;
-        });
-        
-        // Agregar stock actual de productos
+        // Agregar stock actual de productos (total y por bodega)
         const products = ProductService.getAll();
+        const currentStock = products.map(p => ({
+            id: p.id,
+            name: p.name,
+            stock: p.stock || 0,
+            warehouseStock: p.warehouseStock || {}
+        }));
+        const totalStock = currentStock.reduce((sum, p) => sum + (p.stock || 0), 0);
+        
+        const warehouses = ProductService.getWarehouses().map(w => ({
+            id: w.id,
+            name: w.name
+        }));
         
         return res.json({
             success: true,
             report: {
                 period: { startDate, endDate },
                 stats,
-                entries: entriesWithoutNotes,
-                currentStock: products.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    stock: p.stock
-                }))
+                entries,
+                currentStock,
+                totalStock,
+                warehouses
             }
         });
     },

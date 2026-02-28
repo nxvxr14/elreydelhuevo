@@ -12,6 +12,13 @@ Reports.loaders.daily = async function() {
         <!-- Resumen Principal -->
         <div class="stats-grid mb-2">
             <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.15);"><i class="fas fa-wallet" style="color: #3b82f6;"></i></div>
+                <div class="stat-info">
+                    <h3 style="color: #3b82f6;">${Utils.formatCurrency(r.totalIngresos)}</h3>
+                    <p>Ingresos Totales (Ventas + Abonos)</p>
+                </div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-icon sales"><i class="fas fa-shopping-cart"></i></div>
                 <div class="stat-info">
                     <h3>${Utils.formatCurrency(r.totalVentas)}</h3>
@@ -19,17 +26,10 @@ Reports.loaders.daily = async function() {
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="background: rgba(34, 197, 94, 0.15);"><i class="fas fa-money-bill-wave" style="color: var(--success);"></i></div>
+                <div class="stat-icon" style="background: rgba(14, 165, 233, 0.15);"><i class="fas fa-hand-holding-usd" style="color: #0ea5e9;"></i></div>
                 <div class="stat-info">
-                    <h3 style="color: var(--success);">${Utils.formatCurrency(r.ventas.efectivo + r.ventas.transferencia)}</h3>
-                    <p>Ventas (Efectivo + Transferencia)</p>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.15);"><i class="fas fa-wallet" style="color: #3b82f6;"></i></div>
-                <div class="stat-info">
-                    <h3 style="color: #3b82f6;">${Utils.formatCurrency(r.totalIngresos)}</h3>
-                    <p>Ingresos Totales (Ventas + Abonos)</p>
+                    <h3 style="color: #0ea5e9;">${Utils.formatCurrency(r.abonos.total)}</h3>
+                    <p>Abonos del Día (${r.abonos.count})</p>
                 </div>
             </div>
             <div class="stat-card">

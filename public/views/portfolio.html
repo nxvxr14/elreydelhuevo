@@ -117,7 +117,7 @@
                 <button class="modal-close" onclick="closeClientDetailModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <!-- Client Summary -->
+                <!-- Client Summary (global, no filtrado por fecha) -->
                 <div class="detail-section">
                     <div class="detail-stats">
                         <div class="detail-stat">
@@ -175,10 +175,34 @@
                     </form>
                 </div>
 
+                <!-- Date Filters -->
+                <div class="detail-section" style="padding: 0.75rem 1rem;">
+                    <div class="d-flex gap-1" style="flex-wrap: wrap; align-items: flex-end;">
+                        <div class="form-group" style="margin-bottom: 0; min-width: 100px;">
+                            <label style="font-size: 0.8rem;">Período</label>
+                            <select id="detailDateType" class="form-control" onchange="onDetailDateTypeChange()" style="font-size: 0.85rem; padding: 0.4rem;">
+                                <option value="1d">Hoy</option>
+                                <option value="7d">7 días</option>
+                                <option value="month">Mes</option>
+                                <option value="range">Rango</option>
+                                <option value="all">Todo</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="detailStartDateGroup" style="margin-bottom: 0; display: none;">
+                            <label style="font-size: 0.8rem;">Desde</label>
+                            <input type="date" id="detailStartDate" class="form-control" onchange="loadClientDetailFiltered()" style="font-size: 0.85rem; padding: 0.4rem;">
+                        </div>
+                        <div class="form-group" id="detailEndDateGroup" style="margin-bottom: 0; display: none;">
+                            <label style="font-size: 0.8rem;">Hasta</label>
+                            <input type="date" id="detailEndDate" class="form-control" onchange="loadClientDetailFiltered()" style="font-size: 0.85rem; padding: 0.4rem;">
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Credit Sales History -->
                 <div class="detail-section">
                     <h4><i class="fas fa-file-invoice-dollar"></i> Historial de Créditos</h4>
-                    <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                    <div class="table-container">
                         <table class="table" style="font-size: 0.85rem;">
                             <thead>
                                 <tr>
@@ -193,12 +217,13 @@
                             <tbody id="creditSalesTable"></tbody>
                         </table>
                     </div>
+                    <div id="creditSalesPagination" class="mt-1"></div>
                 </div>
 
                 <!-- Payment History -->
                 <div class="detail-section">
                     <h4><i class="fas fa-history"></i> Historial de Abonos</h4>
-                    <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                    <div class="table-container">
                         <table class="table" style="font-size: 0.85rem;">
                             <thead>
                                 <tr>
@@ -213,6 +238,7 @@
                             <tbody id="paymentHistoryTable"></tbody>
                         </table>
                     </div>
+                    <div id="paymentHistoryPagination" class="mt-1"></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -227,6 +253,11 @@
         let clientsData = [];
         let currentClientId = null;
         let currentClientPortfolio = null;
+        let detailCreditSales = [];
+        let detailPaymentHistory = [];
+        let creditSalesPage = 1;
+        let paymentHistoryPage = 1;
+        const DETAIL_PAGE_SIZE = 10;
 
         document.addEventListener('DOMContentLoaded', () => {
             loadPortfolio();
@@ -297,11 +328,101 @@
             }).join('');
         }
 
+        function getDetailDateRange() {
+            const dateType = document.getElementById('detailDateType').value;
+            const now = new Date();
+            const bogotaDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+            const today = bogotaDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+            
+            if (dateType === 'all') return {};
+            if (dateType === '1d') return { startDate: today, endDate: today };
+            if (dateType === '7d') {
+                const d = new Date(bogotaDate);
+                d.setDate(d.getDate() - 6);
+                return { startDate: d.toISOString().split('T')[0], endDate: today };
+            }
+            if (dateType === 'month') {
+                const firstDay = `${bogotaDate.getFullYear()}-${String(bogotaDate.getMonth() + 1).padStart(2, '0')}-01`;
+                return { startDate: firstDay, endDate: today };
+            }
+            if (dateType === 'range') {
+                return {
+                    startDate: document.getElementById('detailStartDate').value || today,
+                    endDate: document.getElementById('detailEndDate').value || today
+                };
+            }
+            return {};
+        }
+        
+        function onDetailDateTypeChange() {
+            const dateType = document.getElementById('detailDateType').value;
+            const startGroup = document.getElementById('detailStartDateGroup');
+            const endGroup = document.getElementById('detailEndDateGroup');
+            
+            if (dateType === 'range') {
+                startGroup.style.display = 'block';
+                endGroup.style.display = 'block';
+                // Set defaults if empty
+                const now = new Date();
+                const today = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' })).toLocaleDateString('en-CA');
+                if (!document.getElementById('detailStartDate').value) document.getElementById('detailStartDate').value = today;
+                if (!document.getElementById('detailEndDate').value) document.getElementById('detailEndDate').value = today;
+            } else {
+                startGroup.style.display = 'none';
+                endGroup.style.display = 'none';
+            }
+            loadClientDetailFiltered();
+        }
+        
+        async function loadClientDetailFiltered() {
+            if (!currentClientId) return;
+            try {
+                Utils.showLoading();
+                const dateRange = getDetailDateRange();
+                let url = `/api/portfolio/client/${currentClientId}`;
+                if (dateRange.startDate && dateRange.endDate) {
+                    url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+                }
+                const result = await Utils.fetch(url);
+                
+                // Update summary stats from filtered data
+                document.getElementById('detailTotalCredit').textContent = Utils.formatCurrency(result.portfolio.totalCredit);
+                document.getElementById('detailTotalPaid').textContent = Utils.formatCurrency(result.portfolio.totalPaid);
+                document.getElementById('detailTotalPending').textContent = Utils.formatCurrency(result.portfolio.totalPending);
+                document.getElementById('detailTotalBaskets').textContent = Utils.formatQuantity(result.portfolio.totalBaskets);
+                document.getElementById('maxPaymentInfo').textContent = `Máximo a abonar: ${Utils.formatCurrency(result.portfolio.totalPending)}`;
+                
+                currentClientPortfolio = result.portfolio;
+                detailCreditSales = result.portfolio.sales || [];
+                detailPaymentHistory = result.paymentHistory || [];
+                creditSalesPage = 1;
+                paymentHistoryPage = 1;
+                
+                renderCreditSales();
+                renderPaymentHistory();
+            } catch (error) {
+                Utils.showToast('Error al cargar datos filtrados', 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
         async function showClientDetail(clientId) {
             try {
                 Utils.showLoading();
-                const result = await Utils.fetch(`/api/portfolio/client/${clientId}`);
                 currentClientId = clientId;
+                
+                // Reset date filter to default (1 day)
+                document.getElementById('detailDateType').value = '1d';
+                document.getElementById('detailStartDateGroup').style.display = 'none';
+                document.getElementById('detailEndDateGroup').style.display = 'none';
+                
+                const dateRange = getDetailDateRange();
+                let url = `/api/portfolio/client/${clientId}`;
+                if (dateRange.startDate && dateRange.endDate) {
+                    url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+                }
+                const result = await Utils.fetch(url);
                 currentClientPortfolio = result.portfolio;
                 
                 // Update modal title
@@ -316,11 +437,15 @@
                 // Update max payment info
                 document.getElementById('maxPaymentInfo').textContent = `Máximo a abonar: ${Utils.formatCurrency(result.portfolio.totalPending)}`;
                 
-                // Render credit sales
-                renderCreditSales(result.portfolio.sales);
+                // Store data for pagination
+                detailCreditSales = result.portfolio.sales || [];
+                detailPaymentHistory = result.paymentHistory || [];
+                creditSalesPage = 1;
+                paymentHistoryPage = 1;
                 
-                // Render payment history
-                renderPaymentHistory(result.paymentHistory);
+                // Render tables with pagination
+                renderCreditSales();
+                renderPaymentHistory();
                 
                 // Reset payment form
                 document.getElementById('paymentForm').reset();
@@ -335,22 +460,29 @@
             }
         }
 
-        function renderCreditSales(sales) {
+        function renderCreditSales() {
             const table = document.getElementById('creditSalesTable');
             
-            if (!sales || sales.length === 0) {
-                table.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin créditos</td></tr>';
+            if (!detailCreditSales || detailCreditSales.length === 0) {
+                table.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin créditos en este período</td></tr>';
+                document.getElementById('creditSalesPagination').innerHTML = '';
                 return;
             }
             
-            // Sort by date (oldest first) and then by status (pending first)
-            const sortedSales = [...sales].sort((a, b) => {
+            // Sort: pending first, then by date (newest first)
+            const sortedSales = [...detailCreditSales].sort((a, b) => {
                 if (a.status === 'pending' && b.status === 'paid') return -1;
                 if (a.status === 'paid' && b.status === 'pending') return 1;
-                return new Date(a.date) - new Date(b.date);
+                return new Date(b.date) - new Date(a.date);
             });
             
-            table.innerHTML = sortedSales.map(sale => {
+            // Paginate
+            const totalPages = Math.ceil(sortedSales.length / DETAIL_PAGE_SIZE);
+            if (creditSalesPage > totalPages) creditSalesPage = totalPages;
+            const start = (creditSalesPage - 1) * DETAIL_PAGE_SIZE;
+            const pageItems = sortedSales.slice(start, start + DETAIL_PAGE_SIZE);
+            
+            table.innerHTML = pageItems.map(sale => {
                 const statusClass = sale.status === 'paid' ? 'sale-status-paid' : 'sale-status-pending';
                 const statusLabel = sale.status === 'paid' ? 'Pagado' : 'Pendiente';
                 
@@ -365,19 +497,29 @@
                     </tr>
                 `;
             }).join('');
+            
+            // Render pagination
+            renderDetailPagination('creditSalesPagination', creditSalesPage, totalPages, 'goToCreditSalesPage');
         }
 
-        function renderPaymentHistory(payments) {
+        function renderPaymentHistory() {
             const table = document.getElementById('paymentHistoryTable');
             
-            if (!payments || payments.length === 0) {
-                table.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin abonos registrados</td></tr>';
+            if (!detailPaymentHistory || detailPaymentHistory.length === 0) {
+                table.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin abonos en este período</td></tr>';
+                document.getElementById('paymentHistoryPagination').innerHTML = '';
                 return;
             }
             
             const transferLabels = { nequi: 'Nequi', bancolombia: 'Bancolombia', davivienda: 'Davivienda' };
             
-            table.innerHTML = payments.map(payment => {
+            // Already sorted newest first from backend
+            const totalPages = Math.ceil(detailPaymentHistory.length / DETAIL_PAGE_SIZE);
+            if (paymentHistoryPage > totalPages) paymentHistoryPage = totalPages;
+            const start = (paymentHistoryPage - 1) * DETAIL_PAGE_SIZE;
+            const pageItems = detailPaymentHistory.slice(start, start + DETAIL_PAGE_SIZE);
+            
+            table.innerHTML = pageItems.map(payment => {
                 let methodLabel = payment.paymentMethod === 'transfer' 
                     ? `Transfer (${transferLabels[payment.transferType] || payment.transferType})`
                     : 'Efectivo';
@@ -408,6 +550,48 @@
                     </tr>
                 `;
             }).join('');
+            
+            // Render pagination
+            renderDetailPagination('paymentHistoryPagination', paymentHistoryPage, totalPages, 'goToPaymentHistoryPage');
+        }
+        
+        function renderDetailPagination(containerId, currentPage, totalPages, funcName) {
+            const container = document.getElementById(containerId);
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            let html = '<div style="display: flex; justify-content: center; gap: 0.25rem; flex-wrap: wrap;">';
+            
+            // Previous
+            html += `<button class="btn btn-sm btn-secondary" ${currentPage <= 1 ? 'disabled' : ''} onclick="${funcName}(${currentPage - 1})" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">&laquo;</button>`;
+            
+            // Page numbers
+            for (let i = 1; i <= totalPages; i++) {
+                if (totalPages > 5 && i > 2 && i < totalPages - 1 && Math.abs(i - currentPage) > 1) {
+                    if (i === 3 || i === totalPages - 2) html += '<span style="padding: 0.25rem; font-size: 0.8rem;">...</span>';
+                    continue;
+                }
+                const active = i === currentPage ? 'btn-primary' : 'btn-secondary';
+                html += `<button class="btn btn-sm ${active}" onclick="${funcName}(${i})" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">${i}</button>`;
+            }
+            
+            // Next
+            html += `<button class="btn btn-sm btn-secondary" ${currentPage >= totalPages ? 'disabled' : ''} onclick="${funcName}(${currentPage + 1})" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">&raquo;</button>`;
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        function goToCreditSalesPage(page) {
+            creditSalesPage = page;
+            renderCreditSales();
+        }
+        
+        function goToPaymentHistoryPage(page) {
+            paymentHistoryPage = page;
+            renderPaymentHistory();
         }
 
         function closeClientDetailModal() {

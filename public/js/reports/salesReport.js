@@ -65,6 +65,13 @@ Reports.loaders.sales = async function() {
                     <p>Promedio por Venta</p>
                 </div>
             </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(14, 165, 233, 0.15);"><i class="fas fa-boxes" style="color: #0ea5e9;"></i></div>
+                <div class="stat-info">
+                    <h3>${Utils.formatQuantity(report.sales.reduce((sum, sale) => sum + (sale.items || []).reduce((itemSum, item) => itemSum + (item.quantity || 0), 0), 0))}</h3>
+                    <p>Canastas Vendidas</p>
+                </div>
+            </div>
         </div>
         
         <div class="chart-container mb-3">

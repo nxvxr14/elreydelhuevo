@@ -35,6 +35,8 @@ Reports.loaders.payments = async function() {
             else if (payment.transferType === 'davivienda') daviviendaTotal += payment.amount;
         }
     });
+
+    const averagePayment = payments.length > 0 ? (totalPayments / payments.length) : 0;
     
     // Obtener nombres de clientes
     const clientsResult = await Utils.fetch('/api/clients');
@@ -69,8 +71,8 @@ Reports.loaders.payments = async function() {
             <div class="stat-card">
                 <div class="stat-icon"><i class="fas fa-list"></i></div>
                 <div class="stat-info">
-                    <h3>${payments.length}</h3>
-                    <p>Total de Abonos</p>
+                    <h3>${Utils.formatCurrency(Math.round(averagePayment))}</h3>
+                    <p>Promedio por Abono</p>
                 </div>
             </div>
         </div>

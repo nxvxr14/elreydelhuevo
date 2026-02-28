@@ -375,22 +375,31 @@ const InventoryService = {
             }
             // Revertir: restar del stock
             if (product) {
-                ProductService.updateStock(entry.productId, -entry.quantity, warehouseId);
+                const stockResult = ProductService.updateStock(entry.productId, -entry.quantity, warehouseId);
+                if (!stockResult.success) {
+                    return { success: false, message: stockResult.message };
+                }
             }
         } else if (type === 'exit') {
             // Para salidas: revertir sumando al stock
             if (product) {
-                ProductService.updateStock(entry.productId, entry.quantity, entry.warehouseId);
+                const stockResult = ProductService.updateStock(entry.productId, entry.quantity, entry.warehouseId);
+                if (!stockResult.success) {
+                    return { success: false, message: stockResult.message };
+                }
             }
         } else if (type === 'transfer') {
             // Para traslados: revertir el traslado
             if (product) {
-                ProductService.transferStock(
+                const stockResult = ProductService.transferStock(
                     entry.productId,
                     entry.toWarehouseId,   // De destino
                     entry.fromWarehouseId, // A origen
                     entry.quantity
                 );
+                if (!stockResult.success) {
+                    return { success: false, message: stockResult.message };
+                }
             }
         }
         

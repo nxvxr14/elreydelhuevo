@@ -27,6 +27,7 @@ Reports.loaders.inventory = async function() {
     const exits = report.entries.filter(e => e.type === 'exit');
     const totalEntriesQty = entries.reduce((sum, e) => sum + e.quantity, 0);
     const totalExitsQty = exits.reduce((sum, e) => sum + e.quantity, 0);
+    const totalCurrentStock = report.totalStock || report.currentStock.reduce((sum, p) => sum + (p.stock || 0), 0);
     
     Reports.getContent().innerHTML = `
         <div class="stats-grid mb-3">
@@ -56,6 +57,7 @@ Reports.loaders.inventory = async function() {
         <div class="card mb-3">
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-boxes" style="margin-right: 0.5rem; color: var(--primary);"></i>Stock Actual</h3>
+                <div class="text-muted" style="font-size: 0.9rem;">Total: <strong style="color: var(--text-primary);">${Utils.formatQuantity(totalCurrentStock)}</strong></div>
             </div>
             <div class="card-body">
                 <div class="table-container">
@@ -64,18 +66,27 @@ Reports.loaders.inventory = async function() {
                             <tr>
                                 <th>ID</th>
                                 <th>Producto</th>
-                                <th>Stock</th>
+                                <th>Stock Total</th>
+                                <th>Detalle por Bodega</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${report.currentStock.map(p => `
-                                <tr>
+                                <tr onclick="toggleWarehouseDetails(${p.id})" style="cursor: pointer;">
                                     <td>${p.id}</td>
                                     <td>${Utils.escapeHtml(p.name)}</td>
                                     <td>
                                         <span class="badge ${p.stock === 0 ? 'badge-danger' : p.stock < 10 ? 'badge-warning' : 'badge-success'}">
                                             ${Utils.formatQuantity(p.stock)}
                                         </span>
+                                    </td>
+                                    <td class="text-muted" style="font-size: 0.85rem;">
+                                        <i class="fas fa-warehouse"></i> Ver bodegas
+                                    </td>
+                                </tr>
+                                <tr class="warehouse-detail-row" data-product-id="${p.id}" style="display: none;">
+                                    <td colspan="4">
+                                        <div class="warehouse-detail" id="warehouseDetail-${p.id}"></div>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -126,11 +137,27 @@ function renderInventoryTable() {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center">No hay movimientos en este período</td></tr>';
     } else {
         tbody.innerHTML = entries.map(e => {
-            const isEntry = (e.type || 'entry') === 'entry';
-            const typeClass = isEntry ? 'badge-success' : 'badge-danger';
-            const typeLabel = isEntry ? 'Entrada' : 'Salida';
-            const quantityPrefix = isEntry ? '+' : '-';
-            const originOrReason = isEntry ? Utils.escapeHtml(e.origin || '') : (EXIT_REASONS[e.reason] || e.reason || '');
+            const type = e.type || 'entry';
+            let typeClass = 'badge-success';
+            let typeLabel = 'Entrada';
+            let quantityPrefix = '+';
+            let originOrReason = Utils.escapeHtml(e.origin || '');
+
+            if (type === 'exit') {
+                typeClass = 'badge-danger';
+                typeLabel = 'Salida';
+                quantityPrefix = '-';
+                originOrReason = EXIT_REASONS[e.reason] || e.reason || '';
+            } else if (type === 'transfer') {
+                typeClass = 'badge-primary';
+                typeLabel = 'Traslado';
+                quantityPrefix = '';
+                const fromName = e.fromWarehouseName ? Utils.escapeHtml(e.fromWarehouseName) : 'N/A';
+                const toName = e.toWarehouseName ? Utils.escapeHtml(e.toWarehouseName) : 'N/A';
+                const transferLabel = `${fromName} -> ${toName}`;
+                const note = e.note ? Utils.escapeHtml(e.note) : '';
+                originOrReason = note ? `${note} <span class="text-muted">(${transferLabel})</span>` : transferLabel;
+            }
             
             return `
                 <tr>
@@ -151,4 +178,47 @@ function renderInventoryTable() {
 function goToInventoryPage(page) {
     Reports.pagination.inventory = page;
     renderInventoryTable();
+}
+
+function toggleWarehouseDetails(productId) {
+    if (!Reports.cache.inventory) return;
+    const detailRow = document.querySelector(`.warehouse-detail-row[data-product-id="${productId}"]`);
+    const detailContainer = document.getElementById(`warehouseDetail-${productId}`);
+    if (!detailRow || !detailContainer) return;
+
+    if (!detailContainer.dataset.loaded) {
+        const report = Reports.cache.inventory;
+        const product = report.currentStock.find(p => p.id === productId);
+        const warehouses = report.warehouses || [];
+        const warehouseMap = {};
+        warehouses.forEach(w => { warehouseMap[String(w.id)] = w.name; });
+
+        if (!product) {
+            detailContainer.innerHTML = '<span class="text-muted">Producto no encontrado</span>';
+        } else {
+            const stockEntries = Object.entries(product.warehouseStock || {});
+            const visibleEntries = stockEntries.filter(([, qty]) => (qty || 0) > 0);
+
+            if (visibleEntries.length === 0) {
+                detailContainer.innerHTML = '<span class="text-muted">Sin stock en bodegas</span>';
+            } else {
+                detailContainer.innerHTML = `
+                    <div class="d-flex flex-wrap gap-1">
+                        ${visibleEntries.map(([warehouseId, qty]) => {
+                            const name = warehouseMap[warehouseId] || `Bodega ${warehouseId}`;
+                            return `<span class="badge badge-secondary">${Utils.escapeHtml(name)}: ${Utils.formatQuantity(qty)}</span>`;
+                        }).join('')}
+                    </div>
+                `;
+            }
+        }
+
+        detailContainer.dataset.loaded = 'true';
+    }
+
+    if (detailRow.style.display === 'none' || detailRow.style.display === '') {
+        detailRow.style.display = 'table-row';
+    } else {
+        detailRow.style.display = 'none';
+    }
 }

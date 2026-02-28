@@ -6,8 +6,8 @@
 Reports.loaders.credits = async function() {
     const { startDate, endDate, clientId, creditStatus } = Reports.getFilters();
     
-    // Obtener datos de cartera
-    const portfolioResult = await Utils.fetch('/api/portfolio');
+    // Obtener datos de cartera filtrados por fecha de venta
+    const portfolioResult = await Utils.fetch(`/api/portfolio?startDate=${startDate}&endDate=${endDate}`);
     let clientsWithCredits = portfolioResult.clients || [];
     
     // IMPORTANTE: Filtrar SOLO clientes con créditos pendientes (totalPending > 0)

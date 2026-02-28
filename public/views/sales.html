@@ -598,6 +598,7 @@
                         <strong>Fecha:</strong> ${Utils.formatDate(sale.date)}<br>
                         <strong>Cliente:</strong> ${Utils.escapeHtml(sale.clientName)}<br>
                         <strong>Origen:</strong> ${sale.source === 'pos' ? 'POS' : 'Manual'}<br>
+                        ${sale.warehouseName ? `<strong>Bodega:</strong> ${Utils.escapeHtml(sale.warehouseName)}<br>` : ''}
                         <strong>Método de Pago:</strong> ${paymentLabel}
                     </div>
                     
@@ -701,13 +702,7 @@
             // Populate products datalist (stock se valida por bodega al agregar)
             const productsList = document.getElementById('productsList');
             productsList.innerHTML = '';
-            products.forEach(p => {
-                const option = document.createElement('option');
-                option.value = p.name;
-                option.dataset.id = p.id;
-                option.dataset.price = p.price;
-                productsList.appendChild(option);
-            });
+            updateProductsDatalist();
             
             // Setup money inputs
             Utils.setupQuantityInput(document.getElementById('addProductQty'));
@@ -719,8 +714,25 @@
         }
         
         function onManualSaleWarehouseChange() {
-            // Al cambiar bodega, actualizar maxStock de los ítems ya agregados (opcional: recalculamos al guardar en backend)
-            // Por ahora solo permitimos agregar con el stock de la bodega seleccionada
+            // Al cambiar bodega, actualizar el datalist con stock de la bodega seleccionada
+            updateProductsDatalist();
+        }
+        
+        function updateProductsDatalist() {
+            const productsList = document.getElementById('productsList');
+            productsList.innerHTML = '';
+            const warehouseId = document.getElementById('saleWarehouse').value;
+            products.forEach(p => {
+                const option = document.createElement('option');
+                let stock = p.stock || 0;
+                if (warehouseId && p.warehouseStock) {
+                    stock = p.warehouseStock[warehouseId] || 0;
+                }
+                option.value = `${p.name} (${Utils.formatQuantity(stock)})`;
+                option.dataset.id = p.id;
+                option.dataset.price = p.price;
+                productsList.appendChild(option);
+            });
         }
         
         function togglePaymentFields() {
@@ -808,11 +820,14 @@
         
         function onProductSearchInput() {
             const searchInput = document.getElementById('addProductSearch');
-            const searchValue = searchInput.value.trim().toLowerCase();
+            const searchValue = searchInput.value.trim();
             const priceInput = document.getElementById('addProductPrice');
             
+            // Strip stock info from datalist value: "Product Name (500)" -> "Product Name"
+            const cleanValue = searchValue.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase();
+            
             // Find the product that matches the input
-            const product = products.find(p => p.name.toLowerCase() === searchValue);
+            const product = products.find(p => p.name.toLowerCase() === cleanValue);
             
             if (product) {
                 selectedProductData = product;
@@ -835,9 +850,10 @@
             }
             
             const searchInput = document.getElementById('addProductSearch');
-            const searchValue = searchInput.value.trim().toLowerCase();
+            const searchValue = searchInput.value.trim();
+            const cleanValue = searchValue.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase();
             
-            const product = products.find(p => p.name.toLowerCase() === searchValue);
+            const product = products.find(p => p.name.toLowerCase() === cleanValue);
             if (!product) {
                 Utils.showToast('Seleccione un producto válido', 'warning');
                 return;
