@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "init-db": "node script/initDatabase.js"
   },
   "keywords": ["pos", "inventario", "ventas"],
   "author": "",
