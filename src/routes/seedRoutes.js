@@ -7,9 +7,6 @@ const SeedController = require('../controllers/seedController');
 // POST /api/seed/load - Cargar datos de ejemplo
 router.post('/load', SeedController.loadSampleData);
 
-// POST /api/seed/clear - Eliminar todos los datos
-router.post('/clear', SeedController.clearAllData);
-
 // GET /api/seed/check - Verificar si hay datos
 router.get('/check', SeedController.checkData);
 

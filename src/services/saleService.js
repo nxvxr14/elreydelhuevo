@@ -419,9 +419,17 @@ const SaleService = {
             clientId: saleData.clientId ? parseInt(saleData.clientId) : oldSale.clientId,
             items: processedItems,
             total: Math.round(total),
-            note: saleData.note !== undefined ? saleData.note.substring(0, 200) : oldSale.note,
+            note: saleData.note != null ? String(saleData.note).substring(0, 200) : oldSale.note,
             updatedAt: db.getCurrentDateTime()
         };
+        
+        // B5: Recalculate pendingAmount/status for credit sales when total changes
+        if (oldSale.paymentMethod === 'credit') {
+            const newTotal = Math.round(total);
+            const paidAmount = oldSale.paidAmount || 0;
+            data.sales[index].pendingAmount = Math.max(0, newTotal - paidAmount);
+            data.sales[index].status = data.sales[index].pendingAmount <= 0 ? 'paid' : 'pending';
+        }
         
         if (!db.writeJSON('sales.json', data)) {
             return { success: false, message: 'Error al actualizar la venta' };
@@ -581,6 +589,9 @@ const SaleService = {
             transferType: tType,
             note: note ? note.substring(0, 200) : ''
         };
+        
+        // Save copy for rollback in case payment record fails
+        const oldSale = JSON.parse(JSON.stringify(sale));
         
         // Initialize payments array if not exists (for backward compatibility)
         if (!sale.payments) {
@@ -744,6 +755,9 @@ const SaleService = {
         allSales.forEach(sale => {
             // Skip sales already processed (within date range)
             if (sale.date >= startDate && sale.date <= endDate) return;
+            
+            // Filter by source if specified (e.g., only POS sales for cash register)
+            if (source && sale.source !== source) return;
             
             // Only check credit sales outside the range
             if (sale.paymentMethod === 'credit' && sale.payments) {

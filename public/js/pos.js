@@ -522,9 +522,6 @@ async function showCashStatus() {
     }
 }
 
-function closeCashStatusModal() {
-    document.getElementById('cashStatusModal').classList.remove('active');
-}
 
 async function closeCashRegister() {
     const confirmed = await Utils.confirm(
@@ -640,7 +637,7 @@ async function saveQuickExpense() {
         const data = {
             concept: concept,
             amount: amount,
-            date: new Date().toISOString().split('T')[0],
+            date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
             note: note
         };
         

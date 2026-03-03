@@ -398,6 +398,25 @@ const PortfolioService = {
         paymentsData.payments.push(newPayment);
         
         if (!db.writeJSON('payments.json', paymentsData)) {
+            // Rollback: revertir los cambios aplicados a las ventas
+            for (const applied of appliedToSales) {
+                const saleIndex = salesData.sales.findIndex(s => s.id === applied.saleId);
+                if (saleIndex === -1) continue;
+                const sale = salesData.sales[saleIndex];
+                sale.paidAmount = Math.max(0, (sale.paidAmount || 0) - applied.amountApplied);
+                sale.pendingAmount = sale.total - sale.paidAmount;
+                if (sale.pendingAmount > 0) sale.status = 'pending';
+                // Remover el payment de portfolio que acabamos de agregar
+                if (sale.payments && sale.payments.length > 0) {
+                    for (let i = sale.payments.length - 1; i >= 0; i--) {
+                        if (sale.payments[i].fromPortfolio === true && sale.payments[i].amount === applied.amountApplied) {
+                            sale.payments.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
+            }
+            db.writeJSON('sales.json', salesData);
             return { success: false, message: 'Error al guardar el registro de abono' };
         }
         
@@ -481,6 +500,21 @@ const PortfolioService = {
         paymentsData.payments.splice(paymentIndex, 1);
         
         if (!db.writeJSON('payments.json', paymentsData)) {
+            // Rollback: re-aplicar los montos del abono a las ventas
+            if (payment.appliedToSales && payment.appliedToSales.length > 0) {
+                for (const applied of payment.appliedToSales) {
+                    const saleIndex = salesData.sales.findIndex(s => s.id === applied.saleId);
+                    if (saleIndex === -1) continue;
+                    const sale = salesData.sales[saleIndex];
+                    sale.paidAmount = (sale.paidAmount || 0) + applied.amountApplied;
+                    sale.pendingAmount = sale.total - sale.paidAmount;
+                    if (sale.pendingAmount <= 0) {
+                        sale.status = 'paid';
+                        sale.pendingAmount = 0;
+                    }
+                }
+                db.writeJSON('sales.json', salesData);
+            }
             return { success: false, message: 'Error al eliminar el abono' };
         }
         

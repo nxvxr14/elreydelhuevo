@@ -5,6 +5,7 @@ const DB_PATH = path.join(__dirname, '../../database');
 
 /**
  * Lee un archivo JSON de la base de datos
+ * Si el archivo principal está corrupto, intenta recuperar desde respaldo
  */
 function readJSON(filename) {
     const filePath = path.join(DB_PATH, filename);
@@ -12,6 +13,20 @@ function readJSON(filename) {
         const data = fs.readFileSync(filePath, 'utf8');
         return JSON.parse(data);
     } catch (error) {
+        // Intentar recuperar desde respaldo
+        const backupPath = filePath + '.bak';
+        try {
+            if (fs.existsSync(backupPath)) {
+                console.warn(`Recuperando ${filename} desde respaldo...`);
+                const backupData = fs.readFileSync(backupPath, 'utf8');
+                const parsed = JSON.parse(backupData);
+                // Restaurar archivo principal desde respaldo
+                fs.writeFileSync(filePath, backupData, 'utf8');
+                return parsed;
+            }
+        } catch (backupError) {
+            console.error(`Error leyendo respaldo de ${filename}:`, backupError.message);
+        }
         console.error(`Error leyendo ${filename}:`, error.message);
         return null;
     }
@@ -19,14 +34,28 @@ function readJSON(filename) {
 
 /**
  * Escribe datos en un archivo JSON de la base de datos
+ * Usa escritura atómica: escribe a archivo temporal, luego renombra
+ * Mantiene respaldo del archivo anterior para recuperación
  */
 function writeJSON(filename, data) {
     const filePath = path.join(DB_PATH, filename);
+    const tempPath = filePath + '.tmp';
+    const backupPath = filePath + '.bak';
     try {
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+        const jsonData = JSON.stringify(data, null, 2);
+        // Escribir a archivo temporal primero
+        fs.writeFileSync(tempPath, jsonData, 'utf8');
+        // Respaldar archivo actual antes de reemplazar
+        if (fs.existsSync(filePath)) {
+            fs.copyFileSync(filePath, backupPath);
+        }
+        // Renombrar (atómico en la mayoría de sistemas de archivos)
+        fs.renameSync(tempPath, filePath);
         return true;
     } catch (error) {
         console.error(`Error escribiendo ${filename}:`, error.message);
+        // Limpiar archivo temporal si quedó
+        try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch(e) {}
         return false;
     }
 }

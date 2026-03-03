@@ -113,7 +113,7 @@ const Utils = {
         toast.className = `toast alert-${type}`;
         toast.innerHTML = `
             <i class="fas fa-${this.getToastIcon(type)}"></i>
-            <span>${message}</span>
+            <span>${this.escapeHtml(message)}</span>
         `;
         
         container.appendChild(toast);
@@ -177,10 +177,10 @@ const Utils = {
             overlay.innerHTML = `
                 <div class="modal">
                     <div class="modal-header">
-                        <h3 class="modal-title">${title}</h3>
+                        <h3 class="modal-title">${this.escapeHtml(title)}</h3>
                     </div>
                     <div class="modal-body">
-                        <p>${message}</p>
+                        <p>${this.escapeHtml(message)}</p>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" id="confirmCancel">Cancelar</button>
@@ -217,7 +217,7 @@ const Utils = {
                         <button class="modal-close" id="passwordCancel">&times;</button>
                     </div>
                     <div class="modal-body">
-                        <p class="mb-2">${message}</p>
+                        <p class="mb-2">${this.escapeHtml(message)}</p>
                         <div class="form-group">
                             <input type="password" id="passwordInput" class="form-control" 
                                    placeholder="Contraseña" autofocus>
@@ -380,8 +380,12 @@ const Utils = {
     
     /**
      * Configura un input para formatear dinero automáticamente
+     * Evita agregar listeners duplicados si ya fue configurado
      */
     setupMoneyInput(input) {
+        if (input.dataset.moneySetup) return;
+        input.dataset.moneySetup = 'true';
+        
         input.addEventListener('input', function(e) {
             // Guardar posición del cursor
             const cursorPos = this.selectionStart;
@@ -414,8 +418,12 @@ const Utils = {
     
     /**
      * Configura un input para formatear cantidades (permite ,5 para media unidad)
+     * Evita agregar listeners duplicados si ya fue configurado
      */
     setupQuantityInput(input) {
+        if (input.dataset.quantitySetup) return;
+        input.dataset.quantitySetup = 'true';
+        
         input.addEventListener('input', function(e) {
             // Guardar posición del cursor
             const cursorPos = this.selectionStart;

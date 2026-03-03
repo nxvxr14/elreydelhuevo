@@ -253,6 +253,7 @@
         let clientsData = [];
         let currentClientId = null;
         let currentClientPortfolio = null;
+        let globalTotalPending = 0;
         let detailCreditSales = [];
         let detailPaymentHistory = [];
         let creditSalesPage = 1;
@@ -385,12 +386,12 @@
                 }
                 const result = await Utils.fetch(url);
                 
-                // Update summary stats from filtered data
                 document.getElementById('detailTotalCredit').textContent = Utils.formatCurrency(result.portfolio.totalCredit);
                 document.getElementById('detailTotalPaid').textContent = Utils.formatCurrency(result.portfolio.totalPaid);
                 document.getElementById('detailTotalPending').textContent = Utils.formatCurrency(result.portfolio.totalPending);
                 document.getElementById('detailTotalBaskets').textContent = Utils.formatQuantity(result.portfolio.totalBaskets);
-                document.getElementById('maxPaymentInfo').textContent = `Máximo a abonar: ${Utils.formatCurrency(result.portfolio.totalPending)}`;
+                globalTotalPending = result.globalTotalPending;
+                document.getElementById('maxPaymentInfo').textContent = `Máximo a abonar: ${Utils.formatCurrency(globalTotalPending)}`;
                 
                 currentClientPortfolio = result.portfolio;
                 detailCreditSales = result.portfolio.sales || [];
@@ -434,8 +435,9 @@
                 document.getElementById('detailTotalPending').textContent = Utils.formatCurrency(result.portfolio.totalPending);
                 document.getElementById('detailTotalBaskets').textContent = Utils.formatQuantity(result.portfolio.totalBaskets);
                 
-                // Update max payment info
-                document.getElementById('maxPaymentInfo').textContent = `Máximo a abonar: ${Utils.formatCurrency(result.portfolio.totalPending)}`;
+                // Update max payment info (always use global totalPending, not filtered)
+                globalTotalPending = result.globalTotalPending;
+                document.getElementById('maxPaymentInfo').textContent = `Máximo a abonar: ${Utils.formatCurrency(globalTotalPending)}`;
                 
                 // Store data for pagination
                 detailCreditSales = result.portfolio.sales || [];
@@ -619,9 +621,9 @@
                 return;
             }
             
-            // Validate against max pending
-            if (currentClientPortfolio && amount > currentClientPortfolio.totalPending) {
-                Utils.showToast(`El abono no puede exceder el saldo pendiente (${Utils.formatCurrency(currentClientPortfolio.totalPending)})`, 'warning');
+            // Validate against max pending (use global total, not date-filtered)
+            if (globalTotalPending > 0 && amount > globalTotalPending) {
+                Utils.showToast(`El abono no puede exceder el saldo pendiente (${Utils.formatCurrency(globalTotalPending)})`, 'warning');
                 return;
             }
             

@@ -234,6 +234,8 @@ const InventoryService = {
         data.entries.push(newEntry);
         
         if (!db.writeJSON('inventory.json', data)) {
+            // Rollback: revertir el cambio de stock
+            ProductService.updateStock(entryData.productId, -stockChange, warehouseId);
             return { success: false, message: 'Error al guardar el movimiento' };
         }
         
@@ -336,6 +338,13 @@ const InventoryService = {
         data.entries.push(newTransfer);
         
         if (!db.writeJSON('inventory.json', data)) {
+            // Rollback: revertir el traslado de stock (invertir origen y destino)
+            ProductService.transferStock(
+                transferData.productId,
+                toWarehouseId,
+                fromWarehouseId,
+                quantity
+            );
             return { success: false, message: 'Error al guardar el traslado' };
         }
         

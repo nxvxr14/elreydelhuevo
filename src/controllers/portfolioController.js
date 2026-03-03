@@ -43,10 +43,18 @@ const PortfolioController = {
             
             const paymentHistory = PortfolioService.getClientPaymentHistory(req.params.clientId, options);
             
+            // Siempre incluir el totalPending global (sin filtro de fechas) para validación de pagos
+            let globalTotalPending = portfolio.totalPending;
+            if (options.startDate || options.endDate) {
+                const globalPortfolio = PortfolioService.getClientPortfolio(req.params.clientId);
+                globalTotalPending = globalPortfolio ? globalPortfolio.totalPending : 0;
+            }
+            
             return res.json({
                 success: true,
                 portfolio,
-                paymentHistory
+                paymentHistory,
+                globalTotalPending
             });
         } catch (error) {
             console.error('Error obteniendo cartera del cliente:', error);

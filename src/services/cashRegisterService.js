@@ -118,17 +118,18 @@ const CashRegisterService = {
         const today = register.date;
         
         // Calcular totales del día - SOLO ventas y gastos del POS (source: 'pos')
+        // Usar totalIncome en vez de totalSales para no contar créditos como efectivo
         const salesStats = SaleService.getStats(today, today, 'pos');
         const expensesStats = ExpenseService.getStats(today, today, 'pos');
         
-        const totalSales = salesStats.totalSales;
+        const totalIncome = salesStats.totalIncome;
         const totalExpenses = expensesStats.totalExpenses;
-        const expectedAmount = register.initialAmount + totalSales - totalExpenses;
+        const expectedAmount = register.initialAmount + totalIncome - totalExpenses;
         
         // Actualizar registro de caja
         register.status = 'closed';
         register.closedAt = db.getCurrentDateTime();
-        register.totalSales = totalSales;
+        register.totalSales = totalIncome;
         register.salesCount = salesStats.salesCount;
         register.totalExpenses = totalExpenses;
         register.expensesCount = expensesStats.expensesCount;
@@ -162,16 +163,17 @@ const CashRegisterService = {
         const today = current.date;
         
         // Calcular totales actuales - SOLO ventas y gastos del POS (source: 'pos')
+        // Usar totalIncome en vez de totalSales para no contar créditos como efectivo
         const salesStats = SaleService.getStats(today, today, 'pos');
         const expensesStats = ExpenseService.getStats(today, today, 'pos');
         
-        const currentAmount = current.initialAmount + salesStats.totalSales - expensesStats.totalExpenses;
+        const currentAmount = current.initialAmount + salesStats.totalIncome - expensesStats.totalExpenses;
         
         return {
             isOpen: true,
             register: {
                 ...current,
-                totalSales: salesStats.totalSales,
+                totalSales: salesStats.totalIncome,
                 salesCount: salesStats.salesCount,
                 totalExpenses: expensesStats.totalExpenses,
                 expensesCount: expensesStats.expensesCount,
