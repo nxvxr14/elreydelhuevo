@@ -24,7 +24,7 @@ npm start
 # Start server (development) - same as production, no hot reload
 npm run dev
 
-# Server runs on http://localhost:3000
+# Server runs on http://localhost:3430 (or PORT env var)
 ```
 
 **No test framework is configured.** If adding tests, use Jest or Mocha.
@@ -45,6 +45,8 @@ node --check public/js/pos.js
 /
 ├── server.js                    # Express server entry point
 ├── package.json
+├── AGENTS.md
+├── docs/
 ├── database/                    # JSON database files
 │   ├── users.json              # User credentials
 │   ├── products.json           # Products catalog
@@ -53,6 +55,8 @@ node --check public/js/pos.js
 │   ├── sales.json              # Sales records
 │   ├── expenses.json           # Expense records
 │   ├── inventory.json          # Inventory movements
+│   ├── payments.json           # Payment records (abonos/créditos)
+│   ├── warehouses.json         # Warehouses catalog
 │   └── cashRegisters.json      # Cash register sessions
 ├── public/                      # Static frontend files
 │   ├── css/styles.css          # Global styles (dark theme)
@@ -61,11 +65,17 @@ node --check public/js/pos.js
 │   │   ├── auth.js             # Authentication handling
 │   │   ├── pos.js              # POS page logic
 │   │   ├── dashboard.js        # Dashboard logic
-│   │   └── products.js         # Products management
-│   └── views/                   # HTML pages
+│   │   ├── products.js         # Products management
+│   │   ├── periodFilter.js     # Shared period filtering logic
+│   │   ├── warehouses.js       # Warehouses module
+│   │   └── reports/            # Reports frontend modules
+│   └── views/                  # HTML pages
 │       ├── login.html
 │       ├── dashboard.html
 │       ├── pos.html
+│       ├── inventory.html
+│       ├── sales.html
+│       ├── reports.html
 │       └── ...
 └── src/
     ├── middleware/auth.js       # Authentication middleware
@@ -223,3 +233,4 @@ node --check public/js/pos.js
 4. **Colombian locale** - Use `es-CO` for number formatting
 5. **Dark theme** - All UI uses dark color scheme
 6. **Mobile responsive** - CSS includes media queries
+7. **Cantidad de producto** - Solo enteros o `,5` (ej: 3, 3,5)

@@ -343,15 +343,21 @@ const Utils = {
     parseQuantity(str) {
         if (!str) return 0;
         const s = String(str).trim();
-        
-        // Verificar si tiene ,5 al final
+
+        // Aceptar únicamente: enteros o enteros con ,5 (con o sin separadores de miles)
+        if (!/^\d{1,3}(\.\d{3})*(,5)?$/.test(s) && !/^\d+(,5)?$/.test(s)) {
+            return NaN;
+        }
+
         const hasHalf = s.endsWith(',5');
-        
-        // Quitar puntos de miles y la coma con el 5
-        let cleanStr = s.replace(/\./g, '').replace(',5', '').replace(/[^0-9-]/g, '');
-        const intPart = parseInt(cleanStr) || 0;
-        
-        return hasHalf ? intPart + 0.5 : intPart;
+        const integerPart = s.replace(/\./g, '').replace(',5', '');
+        const parsedInt = parseInt(integerPart, 10);
+
+        if (isNaN(parsedInt)) {
+            return NaN;
+        }
+
+        return hasHalf ? parsedInt + 0.5 : parsedInt;
     },
     
     /**

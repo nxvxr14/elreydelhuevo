@@ -85,6 +85,19 @@ const InventoryController = {
         
         return res.status(201).json(result);
     },
+
+    /**
+     * Crea un intercambio entre tipos de producto en una misma bodega
+     */
+    createExchange(req, res) {
+        const result = InventoryService.createExchange(req.body);
+
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+
+        return res.status(201).json(result);
+    },
     
     /**
      * Elimina una entrada de inventario

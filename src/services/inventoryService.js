@@ -43,6 +43,8 @@ const InventoryService = {
         
         return entries.map(entry => {
             const product = products.find(p => p.id === entry.productId);
+            const sourceProduct = products.find(p => p.id === (entry.sourceProductId || entry.productId));
+            const targetProduct = products.find(p => p.id === entry.targetProductId);
             const warehouse = entry.warehouseId ? warehouses.find(w => w.id === entry.warehouseId) : null;
             const fromWarehouse = entry.fromWarehouseId ? warehouses.find(w => w.id === entry.fromWarehouseId) : null;
             const toWarehouse = entry.toWarehouseId ? warehouses.find(w => w.id === entry.toWarehouseId) : null;
@@ -50,6 +52,8 @@ const InventoryService = {
             return {
                 ...entry,
                 productName: product ? product.name : 'Producto eliminado',
+                sourceProductName: sourceProduct ? sourceProduct.name : 'Producto eliminado',
+                targetProductName: targetProduct ? targetProduct.name : (entry.targetProductId ? 'Producto eliminado' : null),
                 warehouseName: warehouse ? warehouse.name : (entry.warehouseId ? 'Bodega eliminada' : null),
                 fromWarehouseName: fromWarehouse ? fromWarehouse.name : null,
                 toWarehouseName: toWarehouse ? toWarehouse.name : null,
@@ -77,7 +81,12 @@ const InventoryService = {
         }
         
         if (filters.productId) {
-            entries = entries.filter(e => e.productId === parseInt(filters.productId));
+            const pId = parseInt(filters.productId);
+            entries = entries.filter(e =>
+                e.productId === pId ||
+                e.sourceProductId === pId ||
+                e.targetProductId === pId
+            );
         }
         
         // Filtrar por tipo (entry/exit/transfer)
@@ -350,6 +359,114 @@ const InventoryService = {
         
         return { success: true, entry: newTransfer };
     },
+
+    /**
+     * Crea un intercambio entre tipos de huevo en una misma bodega
+     */
+    createExchange(exchangeData) {
+        const data = db.readJSON('inventory.json');
+        if (!data) {
+            return { success: false, message: 'Error al acceder a la base de datos' };
+        }
+
+        if (!exchangeData.sourceProductId) {
+            return { success: false, message: 'Debe seleccionar el producto origen' };
+        }
+
+        if (!exchangeData.targetProductId) {
+            return { success: false, message: 'Debe seleccionar el producto destino' };
+        }
+
+        if (!exchangeData.warehouseId) {
+            return { success: false, message: 'Debe seleccionar la bodega' };
+        }
+
+        const sourceProductId = parseInt(exchangeData.sourceProductId);
+        const targetProductId = parseInt(exchangeData.targetProductId);
+        const warehouseId = parseInt(exchangeData.warehouseId);
+
+        if (sourceProductId === targetProductId) {
+            return { success: false, message: 'El producto origen y destino no pueden ser el mismo' };
+        }
+
+        const sourceProduct = ProductService.getById(sourceProductId);
+        if (!sourceProduct) {
+            return { success: false, message: 'Producto origen no encontrado' };
+        }
+
+        const targetProduct = ProductService.getById(targetProductId);
+        if (!targetProduct) {
+            return { success: false, message: 'Producto destino no encontrado' };
+        }
+
+        if (!db.isPositiveNumber(exchangeData.quantity) || parseFloat(exchangeData.quantity) <= 0) {
+            return { success: false, message: 'La cantidad debe ser un número positivo mayor a 0' };
+        }
+
+        if (!db.isValidQuantity(exchangeData.quantity)) {
+            return { success: false, message: 'La cantidad solo puede tener .5 como decimal (ej: 10, 10.5)' };
+        }
+
+        if (exchangeData.date && !db.isValidDate(exchangeData.date)) {
+            return { success: false, message: 'La fecha no es válida' };
+        }
+
+        const quantity = parseFloat(exchangeData.quantity);
+
+        // Verificar stock suficiente del producto origen en la bodega
+        const sourceStock = ProductService.getStockByWarehouse(sourceProductId, warehouseId);
+        if (sourceStock < quantity) {
+            return {
+                success: false,
+                message: `Stock insuficiente del producto origen en bodega. Disponible: ${sourceStock}`
+            };
+        }
+
+        // Verificar que la bodega exista
+        const warehousesData = db.readJSON('warehouses.json');
+        const warehouses = warehousesData ? warehousesData.warehouses : [];
+        const warehouse = warehouses.find(w => w.id === warehouseId);
+        if (!warehouse) {
+            return { success: false, message: 'La bodega seleccionada no existe' };
+        }
+
+        // Movimiento atómico: quitar de origen y sumar a destino
+        const removeResult = ProductService.updateStock(sourceProductId, -quantity, warehouseId);
+        if (!removeResult.success) {
+            return { success: false, message: `Error al descontar stock origen: ${removeResult.message}` };
+        }
+
+        const addResult = ProductService.updateStock(targetProductId, quantity, warehouseId);
+        if (!addResult.success) {
+            ProductService.updateStock(sourceProductId, quantity, warehouseId);
+            return { success: false, message: `Error al sumar stock destino: ${addResult.message}` };
+        }
+
+        const reference = db.generateReference('X');
+        const newExchange = {
+            id: reference,
+            reference,
+            type: 'exchange',
+            productId: sourceProductId,
+            sourceProductId,
+            targetProductId,
+            warehouseId,
+            quantity,
+            date: exchangeData.date || db.getCurrentDate(),
+            note: exchangeData.note ? exchangeData.note.substring(0, 200) : '',
+            createdAt: db.getCurrentDateTime()
+        };
+
+        data.entries.push(newExchange);
+
+        if (!db.writeJSON('inventory.json', data)) {
+            ProductService.updateStock(sourceProductId, quantity, warehouseId);
+            ProductService.updateStock(targetProductId, -quantity, warehouseId);
+            return { success: false, message: 'Error al guardar el intercambio' };
+        }
+
+        return { success: true, entry: newExchange };
+    },
     
     /**
      * Elimina un movimiento de inventario (entrada, salida o traslado)
@@ -410,6 +527,25 @@ const InventoryService = {
                     return { success: false, message: stockResult.message };
                 }
             }
+        } else if (type === 'exchange') {
+            const sourceProductId = parseInt(entry.sourceProductId || entry.productId);
+            const targetProductId = parseInt(entry.targetProductId);
+            const warehouseId = entry.warehouseId;
+
+            if (!targetProductId) {
+                return { success: false, message: 'No se puede revertir intercambio: falta producto destino' };
+            }
+
+            const restoreSource = ProductService.updateStock(sourceProductId, entry.quantity, warehouseId);
+            if (!restoreSource.success) {
+                return { success: false, message: restoreSource.message };
+            }
+
+            const removeTarget = ProductService.updateStock(targetProductId, -entry.quantity, warehouseId);
+            if (!removeTarget.success) {
+                ProductService.updateStock(sourceProductId, -entry.quantity, warehouseId);
+                return { success: false, message: removeTarget.message };
+            }
         }
         
         data.entries.splice(index, 1);
@@ -442,18 +578,22 @@ const InventoryService = {
         const entries = all.filter(e => (e.type || 'entry') === 'entry');
         const exits = all.filter(e => e.type === 'exit');
         const transfers = all.filter(e => e.type === 'transfer');
+        const exchanges = all.filter(e => e.type === 'exchange');
         
         const totalEntries = entries.reduce((sum, e) => sum + e.quantity, 0);
         const totalExits = exits.reduce((sum, e) => sum + e.quantity, 0);
         const totalTransfers = transfers.reduce((sum, e) => sum + e.quantity, 0);
+        const totalExchanges = exchanges.reduce((sum, e) => sum + e.quantity, 0);
         
         return {
             totalEntries,
             totalExits,
             totalTransfers,
+            totalExchanges,
             entriesCount: entries.length,
             exitsCount: exits.length,
             transfersCount: transfers.length,
+            exchangesCount: exchanges.length,
             netChange: totalEntries - totalExits
         };
     }

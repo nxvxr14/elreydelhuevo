@@ -7,6 +7,7 @@ router.get('/', InventoryController.getAll);
 router.get('/:id', InventoryController.getById);
 router.post('/', InventoryController.create);
 router.post('/transfer', InventoryController.createTransfer);
+router.post('/exchange', InventoryController.createExchange);
 router.delete('/:id', InventoryController.delete);
 
 module.exports = router;

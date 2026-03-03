@@ -157,6 +157,16 @@ function renderInventoryTable() {
                 const transferLabel = `${fromName} -> ${toName}`;
                 const note = e.note ? Utils.escapeHtml(e.note) : '';
                 originOrReason = note ? `${note} <span class="text-muted">(${transferLabel})</span>` : transferLabel;
+            } else if (type === 'exchange') {
+                typeClass = 'badge-warning';
+                typeLabel = 'Intercambio';
+                quantityPrefix = '';
+                const sourceName = e.sourceProductName ? Utils.escapeHtml(e.sourceProductName) : 'N/A';
+                const targetName = e.targetProductName ? Utils.escapeHtml(e.targetProductName) : 'N/A';
+                const warehouseName = e.warehouseName ? Utils.escapeHtml(e.warehouseName) : 'N/A';
+                const exchangeLabel = `${sourceName} -> ${targetName} (${warehouseName})`;
+                const note = e.note ? Utils.escapeHtml(e.note) : '';
+                originOrReason = note ? `${note} <span class="text-muted">(${exchangeLabel})</span>` : exchangeLabel;
             }
             
             return `

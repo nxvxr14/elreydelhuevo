@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .badge-transfer { background-color: var(--primary); color: var(--bg-dark); }
+        .badge-exchange { background-color: var(--warning); color: var(--bg-dark); }
         .transfer-arrow { color: var(--primary); font-weight: bold; margin: 0 5px; }
     </style>
 </head>
@@ -45,6 +46,7 @@
                     <button class="btn btn-success" onclick="showEntryModal()"><i class="fas fa-plus"></i> Entrada</button>
                     <button class="btn btn-danger" onclick="showExitModal()"><i class="fas fa-minus"></i> Salida</button>
                     <button class="btn btn-primary" onclick="showTransferModal()"><i class="fas fa-exchange-alt"></i> Traslado</button>
+                    <button class="btn btn-warning" onclick="showExchangeModal()"><i class="fas fa-right-left"></i> Intercambio</button>
                 </div>
             </div>
 
@@ -81,6 +83,7 @@
                         <option value="entry">Entradas</option>
                         <option value="exit">Salidas</option>
                         <option value="transfer">Traslados</option>
+                        <option value="exchange">Intercambios</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -256,6 +259,48 @@
         </div>
     </div>
 
+    <!-- Exchange Modal -->
+    <div class="modal-overlay" id="exchangeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Intercambio de Tipos</h3>
+                <button class="modal-close" onclick="closeExchangeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="exchangeForm" onsubmit="event.preventDefault(); saveExchange();">
+                    <div class="form-group">
+                        <label for="exchangeWarehouse">Bodega *</label>
+                        <select id="exchangeWarehouse" class="form-control" required onchange="updateExchangeStock()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="exchangeSourceProduct">Producto Origen *</label>
+                        <select id="exchangeSourceProduct" class="form-control" required onchange="updateExchangeStock()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="exchangeTargetProduct">Producto Destino *</label>
+                        <select id="exchangeTargetProduct" class="form-control" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="exchangeQuantity">Cantidad * <span id="exchangeStockInfo" style="color: var(--text-secondary); font-size: 0.85em;"></span></label>
+                        <input type="text" id="exchangeQuantity" class="form-control" placeholder="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="exchangeDate">Fecha</label>
+                        <input type="date" id="exchangeDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="exchangeNote">Nota</label>
+                        <textarea id="exchangeNote" class="form-control" rows="2" maxlength="200"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeExchangeModal()">Cancelar</button>
+                <button class="btn btn-warning" onclick="saveExchange()">Guardar Intercambio</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Detail Modal -->
     <div class="modal-overlay" id="entryDetailModal">
         <div class="modal">
@@ -290,6 +335,7 @@
             document.getElementById('entryDate').value = Utils.getCurrentDate();
             document.getElementById('exitDate').value = Utils.getCurrentDate();
             document.getElementById('transferDate').value = Utils.getCurrentDate();
+            document.getElementById('exchangeDate').value = Utils.getCurrentDate();
             
             await loadWarehouses();
             await loadProducts();
@@ -306,12 +352,14 @@
                 const exitSelect = document.getElementById('exitWarehouse');
                 const transferFromSelect = document.getElementById('transferFromWarehouse');
                 const transferToSelect = document.getElementById('transferToWarehouse');
+                const exchangeWarehouseSelect = document.getElementById('exchangeWarehouse');
                 
                 filterSelect.innerHTML = '<option value="">Todas</option>';
                 entrySelect.innerHTML = '';
                 exitSelect.innerHTML = '';
                 transferFromSelect.innerHTML = '';
                 transferToSelect.innerHTML = '';
+                exchangeWarehouseSelect.innerHTML = '';
                 
                 warehouses.forEach(w => {
                     const label = `${Utils.escapeHtml(w.name)}${w.isDefault ? ' (Por defecto)' : ''}`;
@@ -320,6 +368,7 @@
                     exitSelect.innerHTML += `<option value="${w.id}">${label}</option>`;
                     transferFromSelect.innerHTML += `<option value="${w.id}">${label}</option>`;
                     transferToSelect.innerHTML += `<option value="${w.id}">${label}</option>`;
+                    exchangeWarehouseSelect.innerHTML += `<option value="${w.id}">${label}</option>`;
                 });
                 
                 // Select default warehouse
@@ -328,6 +377,7 @@
                     entrySelect.value = defaultW.id;
                     exitSelect.value = defaultW.id;
                     transferFromSelect.value = defaultW.id;
+                    exchangeWarehouseSelect.value = defaultW.id;
                     if (warehouses.length > 1) {
                         const otherW = warehouses.find(w => !w.isDefault);
                         if (otherW) transferToSelect.value = otherW.id;
@@ -347,17 +397,23 @@
                 const entrySelect = document.getElementById('entryProduct');
                 const exitSelect = document.getElementById('exitProduct');
                 const transferSelect = document.getElementById('transferProduct');
+                const exchangeSourceSelect = document.getElementById('exchangeSourceProduct');
+                const exchangeTargetSelect = document.getElementById('exchangeTargetProduct');
                 
                 filterSelect.innerHTML = '<option value="">Todos</option>';
                 entrySelect.innerHTML = '';
                 exitSelect.innerHTML = '';
                 transferSelect.innerHTML = '';
+                exchangeSourceSelect.innerHTML = '';
+                exchangeTargetSelect.innerHTML = '';
                 
                 products.forEach(p => {
                     filterSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatQuantity(p.stock)})</option>`;
                     entrySelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
                     exitSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)} (Stock: ${Utils.formatQuantity(p.stock)})</option>`;
                     transferSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
+                    exchangeSourceSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
+                    exchangeTargetSelect.innerHTML += `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`;
                 });
             } catch (error) {
                 console.error('Error loading products:', error);
@@ -423,6 +479,14 @@
                      quantityPrefix = '';
                      warehouseInfo = `${entry.fromWarehouseName || 'N/A'} <span class="transfer-arrow">→</span> ${entry.toWarehouseName || 'N/A'}`;
                      detailInfo = Utils.escapeHtml(entry.note || '');
+                 } else if (type === 'exchange') {
+                     typeClass = 'badge-exchange';
+                     typeLabel = 'Intercambio';
+                     quantityPrefix = '';
+                     warehouseInfo = entry.warehouseName || 'N/A';
+                     const sourceName = Utils.escapeHtml(entry.sourceProductName || entry.productName || 'N/A');
+                     const targetName = Utils.escapeHtml(entry.targetProductName || 'N/A');
+                     detailInfo = `${sourceName} <span class="transfer-arrow">→</span> ${targetName}`;
                  }
                 
                 return `
@@ -636,12 +700,87 @@
             }
         }
 
+        // ==================== Exchange Modal ====================
+        function showExchangeModal() {
+            document.getElementById('exchangeForm').reset();
+            document.getElementById('exchangeDate').value = Utils.getCurrentDate();
+            Utils.setupQuantityInput(document.getElementById('exchangeQuantity'));
+
+            const defaultW = warehouses.find(w => w.isDefault);
+            if (defaultW) document.getElementById('exchangeWarehouse').value = defaultW.id;
+            updateExchangeStock();
+            document.getElementById('exchangeModal').classList.add('active');
+        }
+        function closeExchangeModal() { document.getElementById('exchangeModal').classList.remove('active'); }
+
+        function updateExchangeStock() {
+            const sourceProductId = document.getElementById('exchangeSourceProduct').value;
+            const warehouseId = document.getElementById('exchangeWarehouse').value;
+            const infoSpan = document.getElementById('exchangeStockInfo');
+
+            if (sourceProductId && warehouseId) {
+                const product = products.find(p => p.id === parseInt(sourceProductId));
+                if (product && product.warehouseStock && product.warehouseStock[warehouseId] !== undefined) {
+                    infoSpan.textContent = `(Disponible origen: ${Utils.formatQuantity(product.warehouseStock[warehouseId])})`;
+                } else {
+                    infoSpan.textContent = '(Disponible origen: 0)';
+                }
+            } else {
+                infoSpan.textContent = '';
+            }
+        }
+
+        async function saveExchange() {
+            const quantityStr = document.getElementById('exchangeQuantity').value;
+            const quantity = Utils.parseQuantity(quantityStr);
+            const sourceProductId = document.getElementById('exchangeSourceProduct').value;
+            const targetProductId = document.getElementById('exchangeTargetProduct').value;
+
+            const data = {
+                warehouseId: document.getElementById('exchangeWarehouse').value,
+                sourceProductId,
+                targetProductId,
+                quantity,
+                date: document.getElementById('exchangeDate').value,
+                note: document.getElementById('exchangeNote').value
+            };
+
+            if (!data.warehouseId || !sourceProductId || !targetProductId || !quantityStr) {
+                Utils.showToast('Complete los campos requeridos', 'warning');
+                return;
+            }
+
+            if (sourceProductId === targetProductId) {
+                Utils.showToast('El tipo origen y destino deben ser diferentes', 'warning');
+                return;
+            }
+
+            if (!Utils.isValidQuantity(quantity) || quantity <= 0) {
+                Utils.showToast('La cantidad debe ser mayor a 0 y solo permite ,5 como decimal', 'warning');
+                return;
+            }
+
+            try {
+                Utils.showLoading();
+                await Utils.fetch('/api/inventory/exchange', { method: 'POST', body: JSON.stringify(data) });
+                Utils.showToast('Intercambio registrado', 'success');
+                closeExchangeModal();
+                await refreshAll();
+            } catch (error) {
+                Utils.showToast(error.message, 'danger');
+            } finally {
+                Utils.hideLoading();
+            }
+        }
+
         // ==================== Common Functions ====================
         async function refreshAll() {
             document.getElementById('filterProduct').innerHTML = '<option value="">Todos</option>';
             document.getElementById('entryProduct').innerHTML = '';
             document.getElementById('exitProduct').innerHTML = '';
             document.getElementById('transferProduct').innerHTML = '';
+            document.getElementById('exchangeSourceProduct').innerHTML = '';
+            document.getElementById('exchangeTargetProduct').innerHTML = '';
             
             await loadProducts();
             await loadEntries();
@@ -689,6 +828,11 @@
                      detailHtml += `<p><strong>Bodega Origen:</strong> ${fromW ? Utils.escapeHtml(fromW.name) : 'N/A'}</p>`;
                      detailHtml += `<p><strong>Bodega Destino:</strong> ${toW ? Utils.escapeHtml(toW.name) : 'N/A'}</p>`;
                      detailHtml += `<p><strong>Motivo:</strong> ${Utils.escapeHtml(entry.note || '')}</p>`;
+                 } else if (type === 'exchange') {
+                     const warehouse = warehouses.find(w => w.id === entry.warehouseId);
+                     detailHtml += `<p><strong>Bodega:</strong> ${warehouse ? Utils.escapeHtml(warehouse.name) : 'N/A'}</p>`;
+                     detailHtml += `<p><strong>Origen:</strong> ${Utils.escapeHtml(entry.sourceProductName || entry.productName || '')}</p>`;
+                     detailHtml += `<p><strong>Destino:</strong> ${Utils.escapeHtml(entry.targetProductName || '')}</p>`;
                  }
                 
                 if (entry.note) {
@@ -715,6 +859,8 @@
                 message = '¿Eliminar esta entrada? Se restará la cantidad del stock.';
             } else if (type === 'exit') {
                 message = '¿Eliminar esta salida? Se sumará la cantidad de vuelta al stock.';
+            } else if (type === 'exchange') {
+                message = '¿Eliminar este intercambio? Se revertirá el cambio entre productos.';
             } else {
                 message = '¿Eliminar este traslado? Se revertirá el movimiento entre bodegas.';
             }
