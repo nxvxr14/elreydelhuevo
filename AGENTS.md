@@ -3,12 +3,13 @@
 ## Project Overview
 
 **EL REY DEL HUEVO** - POS and Inventory Management System  
-A Point of Sale (POS) system built with Node.js/Express backend and vanilla JavaScript frontend.
+A Point of Sale (POS) system built with React + TypeScript frontend and InsForge (PostgreSQL) backend.
 
-- **Backend**: Node.js + Express.js
-- **Frontend**: Vanilla JavaScript, HTML, CSS (dark theme)
-- **Database**: JSON files in `/database/` folder (no SQL database)
+- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS v3.4 + shadcn/ui
+- **Backend**: InsForge (PostgreSQL + Auth + RLS + DB functions) — no Node/Express server
+- **Database**: PostgreSQL via InsForge (13 tables with RLS policies)
 - **Currency**: Colombian Pesos ($) - NO decimals, use thousands separators (e.g., `$ 1.500.000`)
+- **Timezone**: America/Bogota
 
 ---
 
@@ -18,23 +19,23 @@ A Point of Sale (POS) system built with Node.js/Express backend and vanilla Java
 # Install dependencies
 npm install
 
-# Start server (production)
-npm start
-
-# Start server (development) - same as production, no hot reload
+# Start dev server (http://localhost:3430)
 npm run dev
 
-# Server runs on http://localhost:3430 (or PORT env var)
-```
+# Type-check + production build
+npm run build
 
-**No test framework is configured.** If adding tests, use Jest or Mocha.
+# Preview production build
+npm run preview
 
-```bash
-# Check JavaScript syntax
-node --check <file.js>
+# Run tests
+npm test
 
-# Example: Check pos.js syntax
-node --check public/js/pos.js
+# Run tests in watch mode
+npm run test:watch
+
+# Lint
+npm run lint
 ```
 
 ---
@@ -43,194 +44,173 @@ node --check public/js/pos.js
 
 ```
 /
-├── server.js                    # Express server entry point
 ├── package.json
+├── vite.config.ts              # Vite + Vitest config
+├── tsconfig.json
+├── tsconfig.app.json
+├── tailwind.config.js          # Tailwind v3.4 dark theme
+├── postcss.config.js
+├── index.html                  # SPA entry point
+├── vercel.json                 # Vercel SPA rewrites
+├── .env                        # VITE_INSFORGE_URL, VITE_INSFORGE_ANON_KEY (gitignored)
 ├── AGENTS.md
-├── docs/
-├── database/                    # JSON database files
-│   ├── users.json              # User credentials
-│   ├── products.json           # Products catalog
-│   ├── categories.json         # Product categories
-│   ├── clients.json            # Customer data
-│   ├── sales.json              # Sales records
-│   ├── expenses.json           # Expense records
-│   ├── inventory.json          # Inventory movements
-│   ├── payments.json           # Payment records (abonos/créditos)
-│   ├── warehouses.json         # Warehouses catalog
-│   └── cashRegisters.json      # Cash register sessions
-├── public/                      # Static frontend files
-│   ├── css/styles.css          # Global styles (dark theme)
-│   ├── js/
-│   │   ├── utils.js            # Shared utilities (formatCurrency, etc.)
-│   │   ├── auth.js             # Authentication handling
-│   │   ├── pos.js              # POS page logic
-│   │   ├── dashboard.js        # Dashboard logic
-│   │   ├── products.js         # Products management
-│   │   ├── periodFilter.js     # Shared period filtering logic
-│   │   ├── warehouses.js       # Warehouses module
-│   │   └── reports/            # Reports frontend modules
-│   └── views/                  # HTML pages
-│       ├── login.html
-│       ├── dashboard.html
-│       ├── pos.html
-│       ├── inventory.html
-│       ├── sales.html
-│       ├── reports.html
-│       └── ...
+├── public/
+│   ├── favicon.svg
+│   └── icons.svg
 └── src/
-    ├── middleware/auth.js       # Authentication middleware
-    ├── utils/database.js        # JSON file read/write utilities
-    ├── routes/                  # Express route definitions
-    ├── controllers/             # Request handlers
-    └── services/                # Business logic
+    ├── main.tsx                # React entry point
+    ├── App.tsx                 # Router + AuthProvider
+    ├── index.css               # Tailwind base + custom theme
+    ├── types/index.ts          # TypeScript interfaces (all DB models)
+    ├── lib/
+    │   ├── insforge.ts         # InsForge client singleton
+    │   ├── utils.ts            # formatCurrency, parseNumber, quantity helpers, date utils
+    │   ├── utils.test.ts       # 50+ unit tests for utils
+    │   ├── constants.ts        # EXIT_REASONS, PAYMENT_METHODS, TRANSFER_TYPES, etc.
+    │   └── constants.test.ts   # Constants validation tests
+    ├── contexts/
+    │   └── AuthContext.tsx      # Auth state, login/logout, role-based access
+    ├── components/
+    │   ├── layout/
+    │   │   ├── Sidebar.tsx     # Navigation sidebar with role-based menu
+    │   │   └── MainLayout.tsx  # Sidebar + content wrapper
+    │   └── ui/                 # shadcn/ui components (13)
+    │       ├── button.tsx
+    │       ├── input.tsx
+    │       ├── card.tsx
+    │       ├── badge.tsx
+    │       ├── dialog.tsx
+    │       ├── select.tsx
+    │       ├── label.tsx
+    │       ├── table.tsx
+    │       ├── textarea.tsx
+    │       ├── toast.tsx
+    │       ├── loading.tsx
+    │       ├── confirm-dialog.tsx
+    │       └── pagination.tsx
+    └── pages/                  # 13 page components
+        ├── LoginPage.tsx
+        ├── DashboardPage.tsx   # Metrics, charts (recharts), alerts
+        ├── POSPage.tsx         # Product grid, cart, cash register, quick expense
+        ├── ProductsPage.tsx    # CRUD + stock by warehouse
+        ├── CategoriesPage.tsx  # CRUD simple
+        ├── ClientsPage.tsx     # CRUD + debt stats
+        ├── SalesPage.tsx       # List + filters + manual sale
+        ├── ExpensesPage.tsx    # CRUD + date filters
+        ├── InventoryPage.tsx   # Entry/exit/transfer/exchange movements
+        ├── CashRegisterPage.tsx # Open/close sessions, history
+        ├── WarehousesPage.tsx  # CRUD + default warehouse protection
+        ├── PortfolioPage.tsx   # Client debts, FIFO payments
+        └── ReportsPage.tsx     # 8 report types with sub-components
 ```
 
 ---
 
 ## Code Style Guidelines
 
-### JavaScript (Backend - Node.js)
+### TypeScript
 
-1. **Imports**: Use CommonJS (`require`/`module.exports`)
-   ```javascript
-   const express = require('express');
-   const ProductService = require('../services/productService');
-   module.exports = ProductController;
+1. **Imports**: Use ES modules with path aliases
+   ```typescript
+   import { insforge } from '@/lib/insforge'
+   import { formatCurrency } from '@/lib/utils'
+   import type { Product, Sale } from '@/types'
    ```
 
 2. **Naming Conventions**:
-   - Files: `camelCase.js` (e.g., `productController.js`, `authRoutes.js`)
-   - Controllers/Services: PascalCase objects with methods
-   - Functions: camelCase
+   - Files: `PascalCase.tsx` for components, `camelCase.ts` for utilities
+   - Components: PascalCase function components
+   - Hooks: `use` prefix (e.g., `useAuth`, `useToast`)
+   - Types/Interfaces: PascalCase
    - Constants: UPPER_SNAKE_CASE
 
-3. **Controller Pattern**:
-   ```javascript
-   const Controller = {
-       getAll(req, res) {
-           const items = Service.getAll();
-           return res.json({ success: true, items });
-       },
-       
-       create(req, res) {
-           const result = Service.create(req.body);
-           if (!result.success) {
-               return res.status(400).json(result);
-           }
-           return res.status(201).json(result);
-       }
-   };
-   ```
-
-4. **Service Pattern**:
-   ```javascript
-   const Service = {
-       getAll() {
-           const data = db.readJSON('items.json');
-           return data ? data.items : [];
-       },
-       
-       create(itemData) {
-           // Validation
-           if (!itemData.name) {
-               return { success: false, message: 'Name is required' };
-           }
-           // ... business logic
-           return { success: true, item: newItem };
-       }
-   };
-   ```
-
-5. **Error Handling**:
-   - Return `{ success: false, message: 'Error description' }` for business errors
-   - Use HTTP status codes: 400 (bad request), 404 (not found), 401 (unauthorized)
-   - Global error handler catches unhandled errors
-
-### JavaScript (Frontend)
-
-1. **Global Utils Object**: Use `Utils.*` for common functions
-   ```javascript
-   Utils.formatCurrency(amount)    // Returns "$ 1.500.000"
-   Utils.formatNumber(num)         // Returns "1.500.000" (no $ symbol)
-   Utils.parseNumber(str)          // Converts "1.500.000" to 1500000
-   Utils.escapeHtml(str)           // Prevents XSS
-   Utils.showToast(msg, type)      // Shows notification
-   Utils.fetch(url, options)       // Wrapper with error handling
-   ```
-
-2. **API Calls**: Always use `Utils.fetch()` wrapper
-   ```javascript
-   try {
-       Utils.showLoading();
-       const result = await Utils.fetch('/api/products', {
-           method: 'POST',
-           body: JSON.stringify(data)
-       });
-       Utils.showToast('Success', 'success');
-   } catch (error) {
-       Utils.showToast(error.message, 'danger');
-   } finally {
-       Utils.hideLoading();
+3. **Component Pattern**: Functional components with hooks
+   ```tsx
+   export function ProductsPage() {
+     const [products, setProducts] = useState<Product[]>([])
+     const { showToast } = useToast()
+     // ...
    }
    ```
 
-3. **DOM Manipulation**: Use vanilla JS, no jQuery
-   ```javascript
-   document.getElementById('elementId')
-   element.innerHTML = `<div>...</div>`
-   element.classList.add('active')
+4. **InsForge SDK Pattern**:
+   ```typescript
+   // Select with join
+   const { data, error } = await insforge.from('products')
+     .select('*, categories(name)')
+     .order('name')
+
+   // Insert (always array)
+   const { error } = await insforge.from('products')
+     .insert([{ name, price, category_id }])
+
+   // Update
+   const { error } = await insforge.from('products')
+     .update({ name, price })
+     .eq('id', productId)
+
+   // Delete (admin only via RLS)
+   const { error } = await insforge.from('products')
+     .delete()
+     .eq('id', productId)
+
+   // RPC (database functions)
+   const { error } = await insforge.rpc('process_pos_sale', {
+     p_items: items, p_client_id: clientId, ...
+   })
    ```
 
-### CSS
+### CSS / Tailwind
 
-1. **CSS Variables**: Use defined CSS variables from `styles.css`
-   ```css
-   var(--primary)         /* #f59e0b - amber/gold */
-   var(--bg-dark)         /* #0f172a - dark background */
-   var(--bg-card)         /* #1e293b - card background */
-   var(--bg-input)        /* #334155 - input background */
-   var(--text-primary)    /* #f8fafc - white text */
-   var(--text-secondary)  /* #94a3b8 - gray text */
-   var(--success)         /* #22c55e - green */
-   var(--danger)          /* #ef4444 - red */
-   var(--warning)         /* #f59e0b - amber */
-   var(--border-color)    /* #334155 */
-   ```
-
-2. **Page-specific styles**: Add in `<style>` tag within the HTML file
-3. **Use `!important` sparingly**: Only when overriding global styles
+- Use Tailwind utility classes + shadcn/ui components
+- Theme uses HSL CSS variables defined in `index.css`
+- Dark theme by default (no light mode toggle)
+- Key colors: primary (amber/gold), background (dark slate), destructive (red), success (green)
 
 ---
 
-## Database (JSON Files)
+## Database (InsForge / PostgreSQL)
 
-- Located in `/database/` folder
-- Use `src/utils/database.js` functions:
-  ```javascript
-  db.readJSON('products.json')   // Returns parsed JSON or null
-  db.writeJSON('filename', data) // Returns true/false
-  db.generateReference('V')      // Generates unique ID like "V17098234561234"
-  db.getCurrentDate()            // Returns "YYYY-MM-DD"
-  db.getCurrentDateTime()        // Returns ISO string
-  ```
+### Tables (13)
+`profiles`, `categories`, `warehouses`, `products`, `product_stock`, `clients`, `sales`, `sale_items`, `expenses`, `inventory_movements`, `cash_registers`, `payments`, `payment_allocations`
+
+### RLS Policies
+- All tables: SELECT/INSERT/UPDATE for `authenticated` role
+- DELETE: only for users with `admin` role in `profiles` table
+- Vendedor role cannot delete any records
+
+### Database Functions (RPC)
+- `generate_reference(prefix)` — unique ID like "V17098234561234"
+- `process_pos_sale(...)` — atomic POS sale (stock, sale, items, cash register)
+- `process_manual_sale(...)` — dashboard/manual sale (no cash register)
+- `process_credit_payment(...)` — FIFO payment allocation
+- `process_inventory_entry/exit/transfer/exchange(...)` — inventory movements
+- `reverse_sale(...)` / `reverse_payment(...)` / `reverse_inventory_movement(...)` — reversals
 
 ---
 
 ## Authentication
 
-- **Login credentials**: `admin` / `huevos`
-- **Global password for edit/delete**: `961114`
-- Session-based auth using `express-session`
-- Protected routes use `isAuthenticated` middleware
+- **InsForge Auth** (email/password, no registration)
+- Two pre-created users:
+  - `admin@elreydelhuevo.com` / `Admin2024!` — role `admin`, all permissions
+  - `vendedor@elreydelhuevo.com` / `Venta2024!` — role `vendedor`, no DELETE
+- No global password for edit/delete — admin can delete directly, vendedor sees no delete button
 
 ---
 
-## Important Notes
+## Business Rules
 
-1. **No TypeScript** - Pure JavaScript
-2. **No build process** - Files served directly
-3. **No decimals in currency** - Always use `Math.round()`
-4. **Colombian locale** - Use `es-CO` for number formatting
-5. **Dark theme** - All UI uses dark color scheme
-6. **Mobile responsive** - CSS includes media queries
-7. **Cantidad de producto** - Solo enteros o `,5` (ej: 3, 3,5)
+1. **No decimals in currency** — Always use `Math.round()`
+2. **Colombian locale** — Use `es-CO` for number formatting
+3. **Quantity validation** — Only integers or `.5` (e.g., 3, 3.5, not 3.2)
+4. **POS vs Dashboard sales** — POS sales affect cash register; dashboard sales don't
+5. **Cash register** — Must be open for POS sales/expenses
+6. **Credit sales** — Don't count as income; only payments (abonos) do
+7. **FIFO payments** — Applied to oldest debt first
+8. **Stock by warehouse** — POS only shows/sells from default warehouse
+9. **Daily report** — Consolidates: cash/transfer sales + cash/transfer payments, by transfer type
+10. **Exit reasons**: waste, cracked, adjustment, gift_rodrigo (Obsequio Rodrigo)
+11. **Transfer types**: Nequi, Bancolombia, Davivienda
+12. **Dark theme** — All UI uses dark color scheme
+13. **Mobile responsive** — Tailwind responsive classes

@@ -106,3 +106,17 @@ typings/
 .history
 
 # End of https://www.gitignore.io/api/node,visualstudiocode
+# InsForge & AI agent skills
+.insforge
+.agent
+.agents
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf
